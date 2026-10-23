@@ -47,33 +47,47 @@ active-stream evidence. Raw runs are in
 
 ## CI evidence
 
-GitHub Actions run
-[39973094582](https://github.com/aryan-astra/BitFly-torrent-stream/actions/runs/39973094582)
-at commit `f7b3706` completed successfully: source quality, x64 and ARM64 jobs
-all passed. The release job was skipped because no tag was pushed.
+Two successful GitHub Actions runs provide the final evidence:
 
-- x64, `windows-2022`, MSVC 2022 and Qt 6.8.3: 5/5 CTest passed including the
-  real-libtorrent integration test (147.23 s). The package validated 97 PE
-  files, produced a portable ZIP and installer, and its staged-application
-  smoke test rendered the first frame in 3,130 ms and exited 0.
-- ARM64, native `windows-11-arm`, MSVC 2022 ARM64 and Qt 6.8.3: 5/5 CTest
-  passed. The package validated 93 PE files and produced a portable ZIP and
-  installer. The staged-application smoke test rendered the first frame in
-  2,620 ms and exited 0.
-- The ARM64 Visual Studio redistributable contains an x64 copy of
-  `vcruntime140_1.dll`, a known Microsoft packaging defect. Packaging excluded
-  that file and proved that no staged ARM64 PE imports it. The ARM64 Qt
-  libraries import `VCRUNTIME140.dll`, not `VCRUNTIME140_1.dll`.
-- Both CI artifact archives were downloaded and inspected locally. The x64 ZIP
-  had 1,461 entries and 97 PE files, all x64. The ARM64 ZIP had 1,457 entries
-  and 93 PE files, all AA64.
-- CI smoke proves first-frame rendering and clean process exit. VLC decoding
-  was proven by the local integration suite, not by the CI smoke test.
+- [39973094582](https://github.com/aryan-astra/BitFly-torrent-stream/actions/runs/39973094582)
+  at `f7b3706` passed source quality, x64 and ARM64. The release job was
+  skipped because no tag existed. x64 passed 5/5 CTest including the
+  real-libtorrent integration test (147.23 s), validated 97 PE files and
+  rendered its staged first frame in 3,130 ms. ARM64 passed 5/5, validated 93
+  PE files and rendered in 2,620 ms. Both smoke runs exited 0.
+- [39977378333](https://github.com/aryan-astra/BitFly-torrent-stream/actions/runs/39977378333)
+  at signed tag `v0.1.0-preview.1` (`9c27337`) rebuilt and retested both
+  architectures: 5/5 CTest each, 97 x64 and 93 ARM64 PE files, staged first
+  frames in 2,061 and 2,295 ms, and clean exits.
 
-| Package | ZIP bytes | Setup bytes | ZIP SHA-256 | Setup SHA-256 |
-| --- | ---: | ---: | --- | --- |
-| CI x64 | 44,397,790 | 29,677,352 | `D7E6CE24469752FE8D09FFEB5EE2B65F7890039CFD8299105E746BA2E265A843` | `04F38609CBCDC582583E4C25EFF938203579C5BAC00C24B508D52139FDCD3161` |
-| CI ARM64 | 30,653,285 | 20,611,354 | `4F99E37DB206144E0BAA3E7FA8A8FEE88643AB654EF88949C6FD4000EFAE8E85` | `9C479B9A31E051D2EA5CC20EB982C626CAA95BF28F8D4A6B9D57744979DB2DA9` |
+The ARM64 Visual Studio redistributable contains an x64 copy of
+`vcruntime140_1.dll`, a known Microsoft packaging defect. Packaging excluded
+that file and proved that no staged ARM64 PE imports it. The ARM64 Qt libraries
+import `VCRUNTIME140.dll`, not `VCRUNTIME140_1.dll`.
+
+Both CI artifact archives were downloaded and inspected locally. The x64 ZIP
+had 1,461 entries and 97 PE files, all x64. The ARM64 ZIP had 1,457 entries and
+93 PE files, all AA64. CI smoke proves first-frame rendering and clean process
+exit; VLC decoding was proven by the local integration suite, not by CI.
+
+### Preview release
+
+[v0.1.0-preview.1](https://github.com/aryan-astra/BitFly-torrent-stream/releases/tag/v0.1.0-preview.1)
+is published as a prerelease. Both builds passed, but the release job's publish
+step initially failed because it had no repository checkout for
+`gh release create --verify-tag`. The verified assets from that run were
+uploaded through the GitHub API and downloaded again to confirm their hashes.
+The workflow now checks out the tag before publishing.
+
+| Release asset | Bytes | SHA-256 |
+| --- | ---: | --- |
+| x64 ZIP | 44,397,803 | `5194D64575ADC52702350B32336540561DC4D90CEF6FBC1831E0913FD76AB99F` |
+| x64 setup | 29,683,549 | `E79BC566436DBA4CC2F3E62CFF8628582536A3A5E30AC991DAB4F4DCA32768BB` |
+| ARM64 ZIP | 30,653,290 | `6AD0AC5E3A0D9E504751181C63451927445CF41C8F3EA27B1A6727CAFF1223AC` |
+| ARM64 setup | 20,610,258 | `07D344B2D85371BF9BFCA18C06CF32DAA26C769E22740F9783C8792958485872` |
+
+Each architecture also publishes a `SHA256SUMS` asset. The four downloaded
+release binaries matched those files.
 
 ## Features and limitations
 
@@ -100,15 +114,16 @@ the installer is 26,993,968 bytes
 The staged application smoke test rendered in 1,747 ms and exited 0. The MSVC
 CI packages above separately carry their own SHA-256 files.
 
-Commits `499cf97`, `c3e95f5`, `de825fe`, `4372645`, `1267b74`, `7e3175c` and
-`f7b3706` use the existing Aryan Shukla GPG identity. GitHub reported
-`verified=true, reason=valid` for all seven, as it did for earlier commits
-`31d5c14`, `8e1334c`, `0ef4cc6` and `5c8bfe6`. No key was generated or
-replaced. No Authenticode certificate is configured: BitFly executables and
-installers are unsigned.
+Commits `499cf97`, `c3e95f5`, `de825fe`, `4372645`, `1267b74`, `7e3175c`,
+`f7b3706`, `9c27337` and `9003a06` use the existing Aryan Shukla GPG identity.
+GitHub reported `verified=true, reason=valid` for all nine, as it did for
+earlier commits `31d5c14`, `8e1334c`, `0ef4cc6` and `5c8bfe6`. The annotated
+tag `v0.1.0-preview.1` is GPG-signed and GitHub also reports it verified. No
+key was generated or replaced. No Authenticode certificate is configured:
+BitFly executables and installers are unsigned.
 
-No stable release has been published. Any preview release is explicitly marked
-as a prerelease and does not change the incomplete gates below.
+No stable release has been published. Preview 1 is explicitly marked as a
+prerelease and does not change the incomplete gates below.
 
 ## Incomplete release gates
 
