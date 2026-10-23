@@ -186,6 +186,33 @@ jobs:
             -OutputDir $dist -RequireInstaller
           if ($LASTEXITCODE -ne 0) { throw 'Packaging failed.' }
 
+      - name: Smoke-test staged application
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:GITHUB_WORKSPACE 'build/release/stage/BitFly.exe'
+          if (!(Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Staged executable not found: $exe" }
+          $probe = Join-Path $env:RUNNER_TEMP 'bitfly-startup-probe.json'
+          $stdout = Join-Path $env:RUNNER_TEMP 'bitfly-smoke-stdout.txt'
+          $stderr = Join-Path $env:RUNNER_TEMP 'bitfly-smoke-stderr.txt'
+          $process = Start-Process -FilePath $exe -ArgumentList @('--startup-probe', $probe, '--quit-after', '5000') -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          if (!$process.WaitForExit(30000)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw 'Staged application did not exit within 30 seconds.'
+          }
+          $stdoutText = Get-Content -LiteralPath $stdout -Raw -ErrorAction SilentlyContinue
+          $stderrText = Get-Content -LiteralPath $stderr -Raw -ErrorAction SilentlyContinue
+          if ($process.ExitCode -ne 0) {
+            throw "Staged application exited with code $($process.ExitCode).`nSTDOUT:`n$stdoutText`nSTDERR:`n$stderrText"
+          }
+          if (!(Test-Path -LiteralPath $probe -PathType Leaf)) {
+            throw "Staged application did not render a first frame.`nSTDOUT:`n$stdoutText`nSTDERR:`n$stderrText"
+          }
+          $evidence = Get-Content -LiteralPath $probe -Raw | ConvertFrom-Json
+          if ($null -eq $evidence.firstFrameMs -or [int]$evidence.firstFrameMs -lt 0) {
+            throw "Invalid startup probe evidence: $(Get-Content -LiteralPath $probe -Raw)"
+          }
+          "Staged application rendered its first frame in $($evidence.firstFrameMs) ms and exited cleanly."
+
       - name: Upload architecture artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
