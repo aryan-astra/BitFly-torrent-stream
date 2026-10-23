@@ -35,6 +35,45 @@ ApplicationWindow {
         while (value >= 1024 && unit < units.length - 1) { value /= 1024; ++unit }
         return (unit === 0 ? Math.round(value) : value.toFixed(1)) + " " + units[unit]
     }
+    function syncSessions() {
+        const incoming = app.sessions
+        const incomingIds = new Set()
+        for (let i = 0; i < incoming.length; ++i)
+            incomingIds.add(String(incoming[i].id || ""))
+
+        // Keep each ListModel row keyed by torrent id. Replacing app.sessions directly
+        // destroys every delegate on each backend refresh, stealing focus and resetting
+        // the user's selected media file.
+        for (let i = activeSessions.count - 1; i >= 0; --i) {
+            if (!incomingIds.has(activeSessions.get(i).sessionId))
+                activeSessions.remove(i)
+        }
+        for (let target = 0; target < incoming.length; ++target) {
+            const item = incoming[target]
+            const key = String(item.id || "")
+            let existing = -1
+            for (let i = target; i < activeSessions.count; ++i) {
+                if (activeSessions.get(i).sessionId === key) { existing = i; break }
+            }
+            if (existing < 0) {
+                activeSessions.insert(target, { sessionId: key, sessionData: item })
+            } else {
+                if (existing !== target) activeSessions.move(existing, target, 1)
+                activeSessions.setProperty(target, "sessionData", item)
+            }
+        }
+    }
+
+    ListModel {
+        id: activeSessions
+        objectName: "activeSessions"
+        dynamicRoles: true
+    }
+    Component.onCompleted: window.syncSessions()
+    Connections {
+        target: app
+        function onChanged() { window.syncSessions() }
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -72,12 +111,12 @@ ApplicationWindow {
                     Layout.leftMargin: 9
                     Layout.bottomMargin: 9
                 }
-                NavItem { label: "Stream"; iconName: "stream"; selected: window.page === "Stream"; Layout.fillWidth: true; onClicked: window.page = "Stream" }
-                NavItem { label: "Queue"; iconName: "queue"; selected: window.page === "Queue"; Layout.fillWidth: true; onClicked: window.page = "Queue" }
-                NavItem { label: "History"; iconName: "history"; selected: window.page === "History"; Layout.fillWidth: true; onClicked: window.page = "History" }
+                NavItem { objectName: "navStream"; label: "Stream"; iconName: "stream"; selected: window.page === "Stream"; Layout.fillWidth: true; onClicked: window.page = "Stream" }
+                NavItem { objectName: "navQueue"; label: "Queue"; iconName: "queue"; selected: window.page === "Queue"; Layout.fillWidth: true; onClicked: window.page = "Queue" }
+                NavItem { objectName: "navHistory"; label: "History"; iconName: "history"; selected: window.page === "History"; Layout.fillWidth: true; onClicked: window.page = "History" }
                 Item { Layout.fillHeight: true }
                 Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: "#373d39"; Layout.bottomMargin: 12 }
-                NavItem { label: "Settings"; iconName: "settings"; selected: window.page === "Settings"; Layout.fillWidth: true; onClicked: window.page = "Settings" }
+                NavItem { objectName: "navSettings"; label: "Settings"; iconName: "settings"; selected: window.page === "Settings"; Layout.fillWidth: true; onClicked: window.page = "Settings" }
                 Label {
                     Layout.leftMargin: 10
                     Layout.topMargin: 10
@@ -145,7 +184,7 @@ ApplicationWindow {
                                 id: input
                                 Layout.fillWidth: true
                                 implicitHeight: 39
-                                placeholderText: "Paste a magnet link or torrent URL"
+                                placeholderText: "Paste a magnet link"
                                 selectByMouse: true
                                 font.pixelSize: 12
                                 onAccepted: addButton.clicked()
@@ -162,6 +201,14 @@ ApplicationWindow {
                                     input.clear()
                                 }
                             }
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: "BitTorrent shares your IP address with peers and can upload downloaded pieces."
+                            color: Theme.secondary
+                            font.pixelSize: 11
+                            wrapMode: Text.Wrap
                         }
 
                         RowLayout {
@@ -191,7 +238,6 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
-                            contentWidth: availableWidth
                             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                             ScrollBar.vertical: ScrollBar {
                                 policy: ScrollBar.AsNeeded
@@ -202,11 +248,14 @@ ApplicationWindow {
                                 width: sessionScroll.availableWidth
                                 spacing: 10
                                 Repeater {
-                                    model: app.sessions
+                                    objectName: "sessionRepeater"
+                                    model: activeSessions
                                     delegate: SessionCard {
-                                        required property var modelData
+                                        required property string sessionId
+                                        required property var sessionData
+                                        objectName: "sessionCard_" + sessionId
                                         Layout.fillWidth: true
-                                        session: modelData
+                                        session: sessionData
                                         onPlayRequested: (id, fileIndex) => app.play(id, fileIndex)
                                         onQueueRequested: (id, fileIndex) => app.enqueue(id, fileIndex)
                                         onPauseRequested: (id, paused) => app.pause(id, paused)
@@ -273,7 +322,6 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
-                            contentWidth: availableWidth
                             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                             ScrollBar.vertical: ScrollBar {
                                 policy: ScrollBar.AsNeeded
@@ -347,7 +395,6 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
-                            contentWidth: availableWidth
                             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                             ScrollBar.vertical: ScrollBar {
                                 policy: ScrollBar.AsNeeded
@@ -428,17 +475,11 @@ ApplicationWindow {
                                     Label { text: app.vlcPath.length ? app.vlcPath : "VLC executable not selected"; color: app.vlcPath.length ? Theme.secondary : Theme.warning; font.pixelSize: 11; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.minimumWidth: 0 }
                                     QuietButton { text: "Choose VLC…"; onClicked: vlcDialog.open() }
                                 }
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: "Get VLC from the official VideoLAN site"
-                                    color: Theme.accent
-                                    font.pixelSize: 11
-                                    font.underline: true
-                                    wrapMode: Text.NoWrap
-                                    elide: Text.ElideRight
-                                    Accessible.role: Accessible.Link
+                                LinkButton {
+                                    text: "Download VLC from VideoLAN"
+                                    Layout.alignment: Qt.AlignLeft
                                     Accessible.name: "Download VLC from VideoLAN"
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Qt.openUrlExternally("https://www.videolan.org/vlc/") }
+                                    onClicked: Qt.openUrlExternally("https://www.videolan.org/vlc/")
                                 }
                             }
                             Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.line }
@@ -472,7 +513,7 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 spacing: 6
                                 Label { text: "Seeding"; color: Theme.ink; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                Label { text: "After playback, BitFly can seed briefly to help other peers."; color: Theme.secondary; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                                Label { text: "After playback, BitFly can seed briefly to help other peers. BitTorrent shares your IP address with the swarm."; color: Theme.secondary; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
                                 RowLayout {
                                     Label { text: "Seed for"; color: Theme.ink; font.pixelSize: 11 }
                                     SettingSpinBox {

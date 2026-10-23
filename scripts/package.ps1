@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory)][string]$QtRoot,
     [string]$VcpkgRoot,
     [string[]]$RuntimeDir = @(),
+    [string]$MsvcRedistDir,
     [Parameter(Mandatory)][string]$OutputDir,
     [string]$Version,
     [string]$InnoCompiler,
@@ -29,7 +30,12 @@ if (!(Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Installed executable
 $windeployqt = Join-Path $qt 'bin\windeployqt.exe'
 if (!(Test-Path -LiteralPath $windeployqt -PathType Leaf)) { throw "windeployqt not found: $windeployqt" }
 
-& $windeployqt --release --no-translations --qmldir (Join-Path $repo 'qml') $exe
+$isMsvc = $qt -match 'msvc'
+if ($isMsvc) {
+    & $windeployqt --release --no-translations --no-compiler-runtime --qmldir (Join-Path $repo 'qml') $exe
+} else {
+    & $windeployqt --release --no-translations --qmldir (Join-Path $repo 'qml') $exe
+}
 if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with exit code $LASTEXITCODE" }
 
 $triplet = if ($Architecture -eq 'x64') { 'x64-windows' } else { 'arm64-windows' }
@@ -59,15 +65,44 @@ if ($vcpkg) {
     $libtorrentDlls = @($runtimeDlls | Where-Object Name -Match '(?i)(lib)?torrent.*\.dll')
     if ($libtorrentDlls.Count -eq 0) { throw "No libtorrent runtime DLLs found in the vcpkg triplet directory $vcpkgBin" }
 }
-if ($qt -match 'msvc') {
-    foreach ($crt in 'vcruntime140.dll', 'msvcp140.dll') {
-        if (!(Test-Path -LiteralPath (Join-Path $stage $crt) -PathType Leaf)) {
-            throw "windeployqt did not stage app-local MSVC runtime $crt."
-        }
+$licenseDir = Join-Path $stage 'licenses'
+if ($isMsvc) {
+    if ([string]::IsNullOrWhiteSpace($MsvcRedistDir)) {
+        throw 'MSVC builds require -MsvcRedistDir pointing to the matching official Microsoft.VC143.CRT redistributable directory.'
     }
+    $msvcRedist = [IO.Path]::GetFullPath($MsvcRedistDir)
+    if (!(Test-Path -LiteralPath $msvcRedist -PathType Container) -or
+        (Split-Path $msvcRedist -Leaf) -ne 'Microsoft.VC143.CRT') {
+        throw "Invalid MSVC app-local redistributable directory: $msvcRedist"
+    }
+    $expectedRedistArch = if ($Architecture -eq 'x64') { 'x64' } else { 'arm64' }
+    if ((Split-Path (Split-Path $msvcRedist -Parent) -Leaf) -ne $expectedRedistArch) {
+        throw "MSVC redistributable architecture does not match ${Architecture}: $msvcRedist"
+    }
+    $crtFiles = @(Get-ChildItem -LiteralPath $msvcRedist -File |
+        Where-Object { $_.Extension -in '.dll', '.manifest' })
+    $crtDlls = @($crtFiles | Where-Object Extension -EQ '.dll')
+    if (!($crtDlls.Name -contains 'vcruntime140.dll') -or !($crtDlls.Name -contains 'msvcp140.dll')) {
+        throw "The selected Microsoft.VC143.CRT directory lacks required redistributable DLLs: $msvcRedist"
+    }
+    foreach ($crtFile in $crtFiles) {
+        Copy-Item -LiteralPath $crtFile.FullName -Destination (Join-Path $stage $crtFile.Name) -Force
+    }
+    $msvcLicenseDir = Join-Path $licenseDir 'MSVC'
+    New-Item -ItemType Directory -Force -Path $msvcLicenseDir | Out-Null
+    $msvcVersion = Split-Path (Split-Path $msvcRedist -Parent) -Leaf
+    @"
+The app-local Visual C++ 2015-2022 Redistributable files in this package were copied from the licensed Visual Studio redistributable layout:
+$msvcRedist
+Redistributable version directory: $msvcVersion
+Architecture: $expectedRedistArch
+
+Microsoft permits app-local deployment of licensed Visual C++ Redistributable DLLs. Central deployment with the official VC++ Redistributable installer is preferred for automatic servicing. This product uses app-local deployment so installation remains per-user and does not require administrator rights. The product maintainer is responsible for shipping updated runtime files with later application releases.
+https://learn.microsoft.com/cpp/windows/choosing-a-deployment-method
+https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files
+"@ | Set-Content -LiteralPath (Join-Path $msvcLicenseDir 'README.txt') -Encoding utf8
 }
 
-$licenseDir = Join-Path $stage 'licenses'
 $qtLicenseDir = Join-Path $licenseDir 'Qt'
 $vcpkgLicenseDir = Join-Path $licenseDir 'vcpkg'
 New-Item -ItemType Directory -Force -Path $qtLicenseDir, $vcpkgLicenseDir | Out-Null

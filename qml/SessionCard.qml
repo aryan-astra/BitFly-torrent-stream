@@ -142,6 +142,7 @@ Rectangle {
             }
             ComboBox {
                 id: fileChoice
+                objectName: "fileChoice_" + root.session.id
                 Layout.fillWidth: true
                 Layout.minimumWidth: 100
                 Layout.maximumWidth: root.width < 620 ? 185 : 300
@@ -183,7 +184,7 @@ Rectangle {
             Item { Layout.fillWidth: true }
             QuietButton {
                 text: root.isPaused ? "Resume" : "Pause"
-                enabled: !!root.session.id
+                enabled: !!root.session.id && !root.session.vlcRunning
                 onClicked: root.pauseRequested(root.session.id, !root.isPaused)
             }
             QuietButton {
@@ -192,9 +193,9 @@ Rectangle {
                 onClicked: root.queueRequested(root.session.id, root.selectedFile ? root.selectedFile.index : -1)
             }
             QuietButton {
-                text: "Play in VLC"
+                text: root.session.vlcRunning ? "VLC is open" : "Play in VLC"
                 highlighted: true
-                enabled: !!root.selectedFile && !!root.session.id
+                enabled: !!root.selectedFile && !!root.session.id && !root.session.vlcRunning
                 onClicked: root.playRequested(root.session.id, root.selectedFile ? root.selectedFile.index : -1)
             }
             ToolButton {

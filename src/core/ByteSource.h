@@ -13,11 +13,11 @@ struct StreamFile {
 };
 // All methods execute on the engine/HTTP worker thread. No blocking waits.
 class ByteSource {
-public:
+  public:
     virtual ~ByteSource() = default;
     virtual std::optional<StreamFile> describe(const QString& id) const = 0;
     virtual void demand(const QString& id, qint64 offset, qint64 length) = 0;
     // Empty means pending. Never return bytes from unverified torrent pieces.
     virtual QByteArray readVerified(const QString& id, qint64 offset, qint64 maxBytes) = 0;
 };
-}
+} // namespace bitfly

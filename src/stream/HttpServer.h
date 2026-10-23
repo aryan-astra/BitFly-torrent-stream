@@ -8,7 +8,7 @@ class ByteSource;
 
 class HttpServer final : public QObject {
     Q_OBJECT
-public:
+  public:
     explicit HttpServer(ByteSource* source, QObject* parent = nullptr);
     ~HttpServer() override;
 
@@ -16,7 +16,7 @@ public:
     void stop();
     QUrl url(const QString& streamId) const;
 
-private:
+  private:
     struct Client;
     void acceptConnections();
     void readRequest(Client* client);
@@ -28,4 +28,4 @@ private:
     class Impl;
     Impl* d;
 };
-}
+} // namespace bitfly

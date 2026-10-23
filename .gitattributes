@@ -1,0 +1,11 @@
+* text=auto
+*.cpp text eol=lf
+*.h text eol=lf
+*.qml text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.py text eol=lf
+*.ps1 text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+*.ico binary

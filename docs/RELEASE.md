@@ -4,7 +4,7 @@ The Windows workflow builds and tests native x64 and ARM64 packages. Pull reques
 
 The build pins Qt 6.8.3 and aqtinstall 3.3.0. vcpkg is checked out at `84bab45d415d22042bd0b9081aea57f362da3f35` (the 2025.12.12 baseline), which resolves libtorrent to 2.0.11. x64 builds use the Windows Server 2022 runner and the MSVC 2022 x64 Qt kit. ARM64 builds run natively on `windows-11-arm` and use the MSVC 2022 ARM64 Qt kit with the installed v143 toolset.
 
-Each architecture job runs the QtTest suite, installs the application into a clean staging directory, deploys the Qt DLLs, QML imports, and matching app-local MSVC runtime with `windeployqt`, copies the vcpkg runtime DLLs and license notices, validates that every staged EXE and DLL has the requested PE machine type, then creates a portable ZIP and an Inno Setup per-user installer. CI downloads the pinned Inno Setup release asset and verifies its Authenticode signature and publisher before installation. A SHA-256 file accompanies each architecture's outputs. The release job uploads only the artifacts from that successful workflow run.
+Each architecture job runs the QtTest suite, installs the application into a clean staging directory, deploys the Qt DLLs and QML imports with `windeployqt`, copies the vcpkg runtime DLLs and license notices, validates that every staged EXE and DLL has the requested PE machine type, then creates a portable ZIP and an Inno Setup per-user installer. For MSVC builds, the workflow discovers the matching Visual Studio installation and copies only release CRT files from its architecture-matched `VC/Redist/MSVC/<version>/<architecture>/Microsoft.VC143.CRT` folder. It does not source runtime DLLs from `System32` or compiler `bin` directories. This per-user app-local deployment does not require administrator rights; the project must update those CRT files with later releases because app-local copies are not serviced by Windows Update. The package includes its MSVC runtime provenance and licensing notice. CI downloads the pinned Inno Setup release asset and verifies its Authenticode signature and publisher before installation. A SHA-256 file accompanies each architecture's outputs. The release job uploads only the artifacts from that successful workflow run.
 
 ## Local packaging
 
@@ -18,6 +18,7 @@ scripts\package.ps1 `
   -StagePath build/stage `
   -QtRoot .tools\Qt\6.8.3\msvc2022_64 `
   -VcpkgRoot .tools\vcpkg `
+  -MsvcRedistDir '<Visual Studio>\VC\Redist\MSVC\<version>\x64\Microsoft.VC143.CRT' `
   -OutputDir dist
 ```
 
@@ -25,7 +26,7 @@ For a local build that uses a static MinGW libtorrent and external OpenSSL, pass
 
 The Qt deployment contains Qt's versioned SPDX records and the project third-party notices. Review those records and notices whenever Qt or vcpkg dependencies change. Qt's Windows deployment and licensing guides describe the DLL deployment model, module terms, and third-party components: [Qt 6.8 Windows deployment](https://doc.qt.io/qt-6.8/windows-deployment.html), [Qt 6.8 licensing](https://doc.qt.io/qt-6.8/licensing.html), and [Qt 6.8 third-party components](https://doc.qt.io/qt-6.8/licenses-used-in-qt.html).
 
-The packages are not code-signed because the project has no signing certificate configured. Windows may show the normal publisher warning until a release certificate is provisioned and signing is added. MSVC builds bundle the compiler runtime DLLs app-locally; they do not run a redistributable installer.
+The packages are not code-signed because the project has no signing certificate configured. Windows may show the normal publisher warning until a release certificate is provisioned and signing is added. MSVC app-local CRT deployment is supported by Microsoft, but central deployment with the official redistributable is preferred because Windows Update can service it; app-local runtime files must be refreshed by the project in later releases. See [Microsoft's deployment-method guidance](https://learn.microsoft.com/cpp/windows/choosing-a-deployment-method) and [Visual C++ file redistribution guidance](https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files).
 
 ## Publishing
 

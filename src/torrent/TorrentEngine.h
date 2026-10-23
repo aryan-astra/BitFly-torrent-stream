@@ -1,27 +1,25 @@
 #pragma once
 
 #include "../core/ByteSource.h"
-#include <QObject>
-#include <QVariantList>
-#include <QHash>
-#include <QTimer>
+#include "StreamingRules.h"
 #include <QElapsedTimer>
+#include <QHash>
+#include <QObject>
+#include <QTimer>
+#include <QVariantList>
 #include <list>
 #include <memory>
 
-namespace libtorrent { class session; class torrent_handle; }
+namespace libtorrent {
+class session;
+class torrent_handle;
+} // namespace libtorrent
 
 namespace bitfly {
 
-// Pure helpers kept public so the path and piece scheduling rules can be tested.
-bool isSafeTorrentPath(const QString& path);
-QList<int> scheduledPieces(qint64 fileOffset, qint64 fileSize, qint64 demandOffset,
-                           qint64 demandLength, int pieceSize, int pieceCount,
-                           int lookAhead = 24);
-
 class TorrentEngine final : public QObject, public ByteSource {
     Q_OBJECT
-public:
+  public:
     explicit TorrentEngine(QString cacheRoot, QObject* parent = nullptr);
     ~TorrentEngine() override;
 
@@ -30,7 +28,7 @@ public:
     QByteArray readVerified(const QString& id, qint64 offset, qint64 maxBytes) override;
     qint64 cacheBytes() const;
 
-public slots:
+  public slots:
     void add(QString input);
     void select(QString sessionId, int fileIndex);
     void pause(QString sessionId, bool paused);
@@ -40,21 +38,24 @@ public slots:
     void restore();
     void stop();
 
-signals:
+  signals:
     void sessionsChanged(QVariantList sessions);
     void error(QString message);
     void streamReady(QString sessionId, QString streamId);
     void cacheBytesChanged(qint64 bytes);
     void stopped();
 
-private slots:
+  private slots:
     void poll();
     void publish();
     void finishStop();
 
-private:
+  private:
     struct Torrent;
-    struct CacheEntry { QByteArray bytes; std::list<QString>::iterator lru; };
+    struct CacheEntry {
+        QByteArray bytes;
+        std::list<QString>::iterator lru;
+    };
     void addTorrent(const QString& id, const QString& input, bool restore = false);
     void configureFiles(Torrent& t);
     bool validateMetadata(Torrent& t);
@@ -86,4 +87,4 @@ private:
     bool m_storagePressure = false;
     QElapsedTimer m_uptime, m_lastDiskScan;
 };
-}
+} // namespace bitfly

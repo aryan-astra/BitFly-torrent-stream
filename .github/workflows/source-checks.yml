@@ -1,0 +1,34 @@
+name: Source quality
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install analysis tools
+        run: |
+          python3 -m venv .tools/quality
+          .tools/quality/bin/pip install clang-format==18.1.8
+          sudo apt-get update
+          sudo apt-get install --yes cppcheck
+          cppcheck --version
+      - name: Formatting
+        run: git ls-files -z '*.cpp' '*.h' | xargs -0 .tools/quality/bin/clang-format --dry-run --Werror
+      - name: Static analysis
+        run: cppcheck --enable=warning,performance,portability --std=c++20 --language=c++ --error-exitcode=1 --inline-suppr --library=qt --suppress=missingIncludeSystem -I src src
+      - name: Review distribution license inputs
+        run: |
+          test -s LICENSE
+          test -s THIRD_PARTY_NOTICES.md
+          test -s licenses/Qt-LGPL-3.0.txt
+          test -s licenses/Qt-GPL-3.0.txt
+          test -s licenses/libtorrent-LICENSE.txt
+          test -s licenses/Boost-LICENSE.txt
+          test -s licenses/OpenSSL-LICENSE.txt
+          git diff --check
