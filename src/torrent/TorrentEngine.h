@@ -41,6 +41,7 @@ class TorrentEngine final : public QObject, public ByteSource {
   signals:
     void sessionsChanged(QVariantList sessions);
     void error(QString message);
+    void diagnostic(QString message);
     void streamReady(QString sessionId, QString streamId);
     void cacheBytesChanged(qint64 bytes);
     void stopped();
@@ -67,7 +68,7 @@ class TorrentEngine final : public QObject, public ByteSource {
     void evictCache();
     void scanManagedStorage();
     QString torrentDir(const QString& id) const;
-    void writeAtomic(const QString& path, const QByteArray& bytes) const;
+    void writeAtomic(const QString& path, const QByteArray& bytes);
     QVariantMap snapshot(Torrent& t);
 
     QString m_root;

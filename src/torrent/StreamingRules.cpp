@@ -1,5 +1,7 @@
 #include "StreamingRules.h"
 
+#include <QDir>
+#include <QFileInfo>
 #include <QRegularExpression>
 #include <algorithm>
 #include <limits>
@@ -24,6 +26,18 @@ bool isSafeTorrentPath(const QString& path) {
             return false;
     }
     return true;
+}
+
+bool sameManagedPath(const QString& expected, const QString& reported) {
+    if (expected.isEmpty() || reported.isEmpty())
+        return false;
+    const QString lhs = QDir::cleanPath(QFileInfo(expected).absoluteFilePath());
+    const QString rhs = QDir::cleanPath(QFileInfo(reported).absoluteFilePath());
+#ifdef Q_OS_WIN
+    return QString::compare(lhs, rhs, Qt::CaseInsensitive) == 0;
+#else
+    return lhs == rhs;
+#endif
 }
 
 QList<int> scheduledPieces(qint64 fileOffset, qint64 fileSize, qint64 demandOffset,

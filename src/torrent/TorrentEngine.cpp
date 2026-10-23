@@ -12,6 +12,7 @@
 #include <QStorageInfo>
 #include <QUuid>
 #include <algorithm>
+#include <cstdint>
 #include <limits>
 
 #include <libtorrent/add_torrent_params.hpp>
@@ -37,6 +38,7 @@ namespace lt = libtorrent;
 namespace {
 constexpr qint64 MaxTorrentBytes = 32 * 1024 * 1024;
 constexpr qint64 LowDiskFreeBytes = 1024LL * 1024 * 1024;
+constexpr int CachePieceLookAhead = 24;
 constexpr int CacheConcurrentReads = 2;
 constexpr int MaxTorrentFiles = 10000;
 constexpr int MaxTorrentPieces = 2000000;
@@ -146,10 +148,13 @@ TorrentEngine::TorrentEngine(QString cacheRoot, QObject* parent)
     }
     m_root = canonicalRoot;
     lt::settings_pack settings;
+    const lt::alert_category_t alerts =
+        lt::alert_category::error | lt::alert_category::storage | lt::alert_category::status |
+        lt::alert_category::file_progress | lt::alert_category::peer |
+        lt::alert_category::piece_progress | lt::alert_category::tracker |
+        lt::alert_category::connect | lt::alert_category::ip_block;
     settings.set_int(lt::settings_pack::alert_mask,
-                     int(lt::alert_category::error | lt::alert_category::storage |
-                         lt::alert_category::status | lt::alert_category::file_progress |
-                         lt::alert_category::peer | lt::alert_category::piece_progress));
+                     static_cast<int>(static_cast<std::uint32_t>(alerts)));
     settings.set_bool(lt::settings_pack::enable_dht, true);
     settings.set_bool(lt::settings_pack::enable_lsd, true);
     settings.set_bool(lt::settings_pack::enable_upnp, false);
@@ -231,11 +236,15 @@ void TorrentEngine::addTorrent(const QString& id, const QString& input, bool res
         return;
     }
     params.save_path = QDir::toNativeSeparators(dataDir).toStdString();
-    params.flags |= lt::torrent_flags::default_dont_download;
+    const bool magnetInput = input.startsWith("magnet:", Qt::CaseInsensitive);
+    // A magnet has no file metadata yet. Marking every future file as dont_download makes
+    // libtorrent consider the torrent an upload-only seed as soon as metadata arrives, which
+    // drops peers and ignores piece deadlines before configureFiles can select a file. Only
+    // paused inputs (.torrent, resume) keep the flag until they are configured.
+    if (!magnetInput)
+        params.flags |= lt::torrent_flags::default_dont_download;
     params.storage_mode = lt::storage_mode_sparse;
     bool hadResume = false;
-
-    const bool magnetInput = input.startsWith("magnet:", Qt::CaseInsensitive);
     if (magnetInput) {
         lt::error_code ec;
         lt::parse_magnet_uri(input.toStdString(), params, ec);
@@ -257,10 +266,15 @@ void TorrentEngine::addTorrent(const QString& id, const QString& input, bool res
                     params.save_path = QDir::toNativeSeparators(dataDir).toStdString();
                     resumeLoaded = true;
                     hadResume = true;
+                } else {
+                    emit diagnostic(QStringLiteral("Restore: resume rejected: %1")
+                                        .arg(QString::fromStdString(ec.message())));
                 }
             }
         }
         if (!resumeLoaded) {
+            emit diagnostic(QStringLiteral("Restore: resume data unavailable, falling back to "
+                                           "stored torrent metadata."));
             const QString torrentFile = QDir(dir).filePath(".torrent");
             QFile file(torrentFile);
             if (!file.open(QIODevice::ReadOnly) || file.size() > MaxTorrentBytes)
@@ -293,14 +307,14 @@ void TorrentEngine::addTorrent(const QString& id, const QString& input, bool res
             writeAtomic(QDir(dir).filePath(".torrent"), source.read(MaxTorrentBytes + 1));
     }
 
-    params.flags |= lt::torrent_flags::default_dont_download;
+    if (!magnetInput)
+        params.flags |= lt::torrent_flags::default_dont_download;
     params.flags &= ~lt::torrent_flags::auto_managed;
+    params.flags |= lt::torrent_flags::duplicate_is_error;
     if (magnetInput)
         params.flags &= ~lt::torrent_flags::paused;
     else if (!restoring || !hadResume)
         params.flags |= lt::torrent_flags::paused;
-    if (restoring && hadResume)
-        params.flags |= lt::torrent_flags::override_resume_data;
     auto* t = new Torrent;
     t->id = id;
     t->dir = dir;
@@ -602,7 +616,7 @@ void TorrentEngine::schedule(Torrent& t, qint64 offset, qint64 length) {
     int distance = 0;
     for (int piece : pieces) {
         const auto pi = lt::piece_index_t(piece);
-        t.handle.set_piece_deadline(pi, std::min(15000, 80 + distance * pieceEtaMs));
+        t.handle.set_piece_deadline(pi, std::min(15000, 80 + distance * pieceEtaMs), {});
         ++distance;
     }
     requestPieceReads(t);
@@ -663,8 +677,9 @@ void TorrentEngine::cachePiece(const QString& key, QByteArray bytes) {
     if (bytes.isEmpty() || bytes.size() > m_ramCacheLimit)
         return;
     if (auto old = m_cache.find(key); old != m_cache.end()) {
-        m_cacheBytes -= old->bytes.size();
-        m_lru.erase(old->lru);
+        CacheEntry& entry = old.value();
+        m_cacheBytes -= entry.bytes.size();
+        m_lru.erase(entry.lru);
         m_cache.erase(old);
     }
     m_lru.push_front(key);
@@ -683,10 +698,14 @@ void TorrentEngine::maybeStreamReady(Torrent& t) {
     if (!file)
         return;
     const qint64 target = std::min<qint64>(2 * 1024 * 1024, file->size);
-    if (readVerified(file->id, 0, target).size() >= target) {
+    const qint64 buffered = readVerified(file->id, 0, target).size();
+    if (buffered >= target) {
         t.streamReadyEmitted = true;
         emit streamReady(t.id, file->id);
+        return;
     }
+    if (buffered < target && !t.userPaused && !m_storagePressure)
+        schedule(t, buffered, target - buffered);
 }
 
 void TorrentEngine::evictCache() {
@@ -784,15 +803,21 @@ void TorrentEngine::scanManagedStorage() {
         }
 }
 
-void TorrentEngine::writeAtomic(const QString& path, const QByteArray& bytes) const {
-    if (bytes.size() > MaxTorrentBytes)
+void TorrentEngine::writeAtomic(const QString& path, const QByteArray& bytes) {
+    if (bytes.size() > MaxTorrentBytes) {
+        emit error("Session state exceeds the supported size and could not be saved.");
         return;
+    }
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size()) {
         file.cancelWriting();
+        emit error(
+            "Could not save torrent state. Check the cache folder and available disk space.");
         return;
     }
-    file.commit();
+    if (!file.commit())
+        emit error(
+            "Could not commit torrent state. Check the cache folder and available disk space.");
 }
 
 void TorrentEngine::save() {
@@ -850,11 +875,13 @@ void TorrentEngine::poll() {
             const auto* cookie = added->params.userdata.get<Torrent>();
             Torrent* t = nullptr;
             for (auto* candidate : m_torrents)
-                if (candidate == cookie) {
+                if (candidate == cookie &&
+                    sameManagedPath(QDir(candidate->dir).filePath("data"),
+                                    QString::fromStdString(added->params.save_path))) {
                     t = candidate;
                     break;
                 }
-            if (t && added->handle.is_valid()) {
+            if (t && !added->error && added->handle.is_valid()) {
                 t->handle = added->handle;
                 t->metadataStartedMs = m_uptime.elapsed();
                 if (t->handle.torrent_file())
@@ -862,7 +889,14 @@ void TorrentEngine::poll() {
             } else if (added->handle.is_valid()) {
                 // The caller removed this session while async_add_torrent was in flight.
                 // The userdata cookie is intentionally treated as an opaque identity here.
-                m_session->remove_torrent(added->handle);
+                bool alreadyOwned = false;
+                for (const auto* candidate : m_torrents)
+                    if (candidate->handle == added->handle) {
+                        alreadyOwned = true;
+                        break;
+                    }
+                if (!alreadyOwned)
+                    m_session->remove_torrent(added->handle);
             }
             if (added->error) {
                 if (t)
@@ -897,10 +931,18 @@ void TorrentEngine::poll() {
                     const auto bytes = lt::write_resume_data_buf(params);
                     writeAtomic(QDir(t->dir).filePath(".fastresume"),
                                 QByteArray(bytes.data(), int(bytes.size())));
-                    const auto torrentBytes = lt::write_torrent_file_buf(params, {});
-                    if (!torrentBytes.empty())
-                        writeAtomic(QDir(t->dir).filePath(".torrent"),
-                                    QByteArray(torrentBytes.data(), int(torrentBytes.size())));
+                    try {
+                        // v2 magnets may not have downloaded every Merkle piece layer yet.
+                        // This is a private recovery file, not an exported distribution torrent.
+                        const auto torrentBytes = lt::write_torrent_file_buf(
+                            params, lt::write_flags::allow_missing_piece_layer);
+                        if (!torrentBytes.empty())
+                            writeAtomic(QDir(t->dir).filePath(".torrent"),
+                                        QByteArray(torrentBytes.data(), int(torrentBytes.size())));
+                    } catch (const lt::system_error& e) {
+                        emit error("Could not preserve torrent metadata: " +
+                                   QString::fromStdString(e.what()));
+                    }
                     break;
                 }
             if (--m_resumePending <= 0 && m_stopping)
@@ -917,6 +959,18 @@ void TorrentEngine::poll() {
                 }
         } else if (auto* errorAlert = lt::alert_cast<lt::torrent_error_alert>(alert)) {
             emit error(QString::fromStdString(errorAlert->message()));
+        } else if (auto* trackerError = lt::alert_cast<lt::tracker_error_alert>(alert)) {
+            emit diagnostic(QString::fromStdString(trackerError->message()));
+        } else if (auto* trackerReply = lt::alert_cast<lt::tracker_reply_alert>(alert)) {
+            emit diagnostic(QString::fromStdString(trackerReply->message()));
+        } else if (auto* connectAlert = lt::alert_cast<lt::peer_connect_alert>(alert)) {
+            emit diagnostic(QString::fromStdString(connectAlert->message()));
+        } else if (auto* disconnectAlert = lt::alert_cast<lt::peer_disconnected_alert>(alert)) {
+            emit diagnostic(QString::fromStdString(disconnectAlert->message()));
+        } else if (auto* peerError = lt::alert_cast<lt::peer_error_alert>(alert)) {
+            emit diagnostic(QString::fromStdString(peerError->message()));
+        } else if (auto* blocked = lt::alert_cast<lt::peer_blocked_alert>(alert)) {
+            emit diagnostic(QString::fromStdString(blocked->message()));
         }
         if (!m_session)
             break;
@@ -962,6 +1016,13 @@ QVariantMap TorrentEngine::snapshot(Torrent& t) {
                   "magnet link.";
         out["error"] = t.error;
     }
+    QCollator episodeOrder;
+    episodeOrder.setNumericMode(true);
+    std::stable_sort(files.begin(), files.end(),
+                     [&episodeOrder](const QVariant& left, const QVariant& right) {
+                         return episodeOrder.compare(left.toMap().value("name").toString(),
+                                                     right.toMap().value("name").toString()) < 0;
+                     });
     out["files"] = files;
     return out;
 }

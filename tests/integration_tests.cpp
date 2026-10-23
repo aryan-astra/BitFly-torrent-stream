@@ -3,6 +3,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
 #include <QProcess>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -10,6 +11,7 @@
 #include <QTimer>
 #include <QtEndian>
 #include <QtTest>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 
@@ -17,6 +19,7 @@
 #include "../src/torrent/TorrentEngine.h"
 
 #include <libtorrent/add_torrent_params.hpp>
+#include <libtorrent/alert_types.hpp>
 #include <libtorrent/bencode.hpp>
 #include <libtorrent/create_torrent.hpp>
 #include <libtorrent/file_storage.hpp>
@@ -32,7 +35,6 @@ namespace lt = libtorrent;
 
 namespace {
 constexpr qsizetype MediaSize = 8 * 1024 * 1024;
-constexpr int PieceSize = 256 * 1024;
 
 class LocalTracker final : public QTcpServer {
   public:
@@ -48,11 +50,26 @@ class LocalTracker final : public QTcpServer {
                     socket->setProperty("requestBuffer", request);
                     if (!request.contains("\r\n\r\n"))
                         return;
+                    ++m_requestCount;
                     socket->setProperty("answered", true);
-                    QByteArray compact("\x7f\0\0\1", 4);
-                    compact.append(char((m_peerPort >> 8) & 0xff));
-                    compact.append(char(m_peerPort & 0xff));
-                    const QByteArray body = "d8:intervali1e5:peers" +
+                    // Never return the seeder to itself. The announce port is plain ASCII in
+                    // the request target, even though info_hash and peer_id are percent-encoded.
+                    const int portAt = request.indexOf("port=");
+                    const int portEnd = portAt < 0 ? -1 : request.indexOf('&', portAt);
+                    bool fromSeeder = false;
+                    if (portAt >= 0) {
+                        const QByteArray announcedPort = request.mid(
+                            portAt + 5,
+                            (portEnd < 0 ? request.indexOf(" ", portAt) : portEnd) - (portAt + 5));
+                        fromSeeder = announcedPort.toUShort() == m_peerPort;
+                    }
+                    QByteArray compact;
+                    if (!fromSeeder) {
+                        compact.append("\x7f\0\0\1", 4);
+                        compact.append(char((m_peerPort >> 8) & 0xff));
+                        compact.append(char(m_peerPort & 0xff));
+                    }
+                    const QByteArray body = "d8:intervali1e8:completei1e10:incompletei0e5:peers" +
                                             QByteArray::number(compact.size()) + ':' + compact +
                                             'e';
                     socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: "
@@ -68,6 +85,9 @@ class LocalTracker final : public QTcpServer {
     void setPeerPort(quint16 port) {
         m_peerPort = port;
     }
+    int requestCount() const {
+        return m_requestCount;
+    }
     QUrl announceUrl() const {
         QUrl url;
         url.setScheme("http");
@@ -79,7 +99,24 @@ class LocalTracker final : public QTcpServer {
 
   private:
     quint16 m_peerPort = 0;
+    int m_requestCount = 0;
 };
+
+QStringList peerDiagnostics(lt::session& session) {
+    std::vector<lt::alert*> alerts;
+    session.pop_alerts(&alerts);
+    QStringList lines;
+    for (const auto* alert : alerts) {
+        if (lt::alert_cast<lt::peer_connect_alert>(alert) ||
+            lt::alert_cast<lt::peer_disconnected_alert>(alert) ||
+            lt::alert_cast<lt::peer_error_alert>(alert) ||
+            lt::alert_cast<lt::peer_blocked_alert>(alert) ||
+            lt::alert_cast<lt::incoming_connection_alert>(alert) ||
+            lt::alert_cast<lt::listen_failed_alert>(alert))
+            lines.append(QString::fromStdString(alert->message()));
+    }
+    return lines;
+}
 
 struct HttpResult {
     int status = 0;
@@ -194,6 +231,7 @@ class IntegrationTests final : public QObject {
     void realLibtorrentStreamsRangesAndRestores_data() {
         QTest::addColumn<QString>("mode");
         QTest::newRow("v1") << QStringLiteral("v1");
+        QTest::newRow("v1magnet") << QStringLiteral("v1magnet");
         QTest::newRow("v2") << QStringLiteral("v2");
         QTest::newRow("hybrid") << QStringLiteral("hybrid");
     }
@@ -220,7 +258,15 @@ class IntegrationTests final : public QObject {
         seedSettings.set_bool(lt::settings_pack::enable_lsd, false);
         seedSettings.set_bool(lt::settings_pack::enable_upnp, false);
         seedSettings.set_bool(lt::settings_pack::enable_natpmp, false);
+        // Multiple libtorrent sessions in this process otherwise share the default peer ID and
+        // reject each other as self-connections, preventing a realistic local swarm test.
+        seedSettings.set_str(lt::settings_pack::peer_fingerprint, "BFSEEDER-TEST-000001");
         seedSettings.set_int(lt::settings_pack::upload_rate_limit, 256 * 1024);
+        const lt::alert_category_t seedAlerts =
+            lt::alert_category::error | lt::alert_category::peer | lt::alert_category::connect |
+            lt::alert_category::status;
+        seedSettings.set_int(lt::settings_pack::alert_mask,
+                             static_cast<int>(static_cast<std::uint32_t>(seedAlerts)));
         lt::session seeder(seedSettings);
         QTRY_VERIFY_WITH_TIMEOUT(seeder.listen_port() != 0, 10000);
         tracker.setPeerPort(seeder.listen_port());
@@ -228,12 +274,17 @@ class IntegrationTests final : public QObject {
         lt::file_storage files;
         files.add_file("fixture.wav", expected.size());
         lt::create_flags_t createFlags;
-        if (mode == "v1")
+        if (mode == "v1" || mode == "v1magnet")
             createFlags = lt::create_torrent::v1_only;
         else if (mode == "v2")
             createFlags = lt::create_torrent::v2_only;
-        lt::create_torrent creator(files, PieceSize, createFlags);
-        creator.set_priv(true);
+        const int pieceSize = (mode == "v1" || mode == "v1magnet") ? 16 * 1024 : 256 * 1024;
+        lt::create_torrent creator(files, pieceSize, createFlags);
+        // libtorrent deliberately omits the ut_metadata extension for private torrents, so a
+        // private fixture can never resolve from a magnet link. Keep the .torrent rows private
+        // to exercise that path and make the magnet rows public, as real magnet swarms are.
+        const bool magnetMode = mode == "v1magnet" || mode == "v2";
+        creator.set_priv(!magnetMode);
         creator.add_tracker(tracker.announceUrl().toString(QUrl::FullyEncoded).toStdString());
         lt::set_piece_hashes(creator, QDir::toNativeSeparators(seedDir).toStdString());
         const lt::entry torrentEntry = creator.generate();
@@ -250,11 +301,16 @@ class IntegrationTests final : public QObject {
         seedParams.ti = std::make_shared<lt::torrent_info>(torrentPath.toStdString());
         seedParams.save_path = QDir::toNativeSeparators(seedDir).toStdString();
         seedParams.flags |= lt::torrent_flags::seed_mode;
-        seedParams.flags &= ~lt::torrent_flags::paused;
+        seedParams.flags &= ~(lt::torrent_flags::paused | lt::torrent_flags::auto_managed);
         const lt::torrent_handle seedHandle = seeder.add_torrent(std::move(seedParams), seedError);
         QVERIFY2(!seedError, seedError.message().c_str());
         seedHandle.set_upload_limit(256 * 1024);
         QTRY_VERIFY_WITH_TIMEOUT(seedHandle.status().is_seeding, 10000);
+        QStringList seedDiagnostics;
+        QTimer seedAlertTimer;
+        connect(&seedAlertTimer, &QTimer::timeout, this,
+                [&] { seedDiagnostics.append(peerDiagnostics(seeder)); });
+        seedAlertTimer.start(25);
 
         auto engine = std::make_unique<bitfly::TorrentEngine>(cacheDir);
         QVariantList latestSessions;
@@ -262,26 +318,76 @@ class IntegrationTests final : public QObject {
                 [&](const QVariantList& value) { latestSessions = value; });
         QSignalSpy ready(engine.get(), &bitfly::TorrentEngine::streamReady);
         QVERIFY(ready.isValid());
+        QSignalSpy engineErrors(engine.get(), &bitfly::TorrentEngine::error);
+        QVERIFY(engineErrors.isValid());
+        QSignalSpy engineDiagnostics(engine.get(), &bitfly::TorrentEngine::diagnostic);
+        QVERIFY(engineDiagnostics.isValid());
         QString engineInput = torrentPath;
         QString inputKind = QStringLiteral("torrent-file");
-        if (mode == "v2") {
+        if (mode == "v2" || mode == "v1magnet") {
             engineInput = QString::fromStdString(lt::make_magnet_uri(seedHandle)) +
                           QStringLiteral("&x.pe=127.0.0.1:") +
                           QString::number(seeder.listen_port());
             inputKind = QStringLiteral("magnet");
         }
-        qInfo().noquote()
-            << QStringLiteral("INTEGRATION_INPUT mode=%1 kind=%2").arg(mode, inputKind);
+        qInfo().noquote() << QStringLiteral("INTEGRATION_INPUT mode=%1 kind=%2 input=%3")
+                                 .arg(mode, inputKind, engineInput);
         engine->add(engineInput);
-        QTRY_VERIFY_WITH_TIMEOUT(
+        QTRY_VERIFY2_WITH_TIMEOUT(
             !latestSessions.isEmpty() &&
                 !latestSessions.first().toMap().value("name").toString().isEmpty(),
+            qPrintable(
+                QStringLiteral(
+                    "Torrent metadata did not resolve. mode=%1 sessions=%2 trackerAnnounces=%3 "
+                    "seederPeers=%4 engineErrors=%5 engineDiagnostics=%6 seedDiagnostics=%7")
+                    .arg(mode)
+                    .arg(QString::fromUtf8(
+                        QJsonDocument::fromVariant(latestSessions).toJson(QJsonDocument::Compact)))
+                    .arg(tracker.requestCount())
+                    .arg(seedHandle.status().num_peers)
+                    .arg([&] {
+                        QStringList values;
+                        for (const auto& value : engineErrors)
+                            values.append(value.value(0).toString());
+                        return values.join(QStringLiteral(" | "));
+                    }())
+                    .arg([&] {
+                        QStringList values;
+                        for (const auto& value : engineDiagnostics)
+                            values.append(value.value(0).toString());
+                        return values.join(QStringLiteral(" | "));
+                    }())
+                    .arg(seedDiagnostics.join(QStringLiteral(" | ")))),
             20000);
         const QString id = latestSessions.first().toMap().value("id").toString();
         QVERIFY(!id.isEmpty());
         engine->select(id, 0);
-        if (ready.isEmpty())
-            QVERIFY(ready.wait(60000));
+        if (ready.isEmpty() && !ready.wait(60000)) {
+            const QString snapshot =
+                QString::fromUtf8(QJsonDocument::fromVariant(findSession(latestSessions, id))
+                                      .toJson(QJsonDocument::Compact));
+            QStringList errors;
+            for (const auto& error : engineErrors)
+                errors.append(error.value(0).toString());
+            for (const auto& diagnostic : engineDiagnostics)
+                errors.append(diagnostic.value(0).toString());
+            const QString diagnostic =
+                QStringLiteral("Timed out waiting for verified startup buffer. snapshot=%1 "
+                               "engineErrors=%2 trackerAnnounces=%3 seederPeers=%4")
+                    .arg(snapshot, errors.join(QStringLiteral(" | ")))
+                    .arg(tracker.requestCount())
+                    .arg(seedHandle.status().num_peers);
+            const auto seedStatus = seedHandle.status();
+            const QString seederState =
+                QStringLiteral(
+                    "seeder_state=%1 paused=%2 seeding=%3 progress=%4 seedDiagnostics=%5")
+                    .arg(int(seedStatus.state))
+                    .arg(bool(seedStatus.flags & lt::torrent_flags::paused))
+                    .arg(seedStatus.is_seeding)
+                    .arg(seedStatus.progress_ppm)
+                    .arg(seedDiagnostics.join(QStringLiteral(" | ")));
+            QFAIL(qPrintable(diagnostic + QLatin1Char(' ') + seederState));
+        }
         QCOMPARE(ready.first().at(0).toString(), id);
         const QString streamId = ready.first().at(1).toString();
         QCOMPARE(streamId, id + "/0");
@@ -327,47 +433,107 @@ class IntegrationTests final : public QObject {
                     QStringLiteral("BITFLY_TEST_VLC is not an executable file: %1").arg(vlcPath)));
             const QString decodedPath =
                 temp.filePath(QStringLiteral("vlc-decoded-%1.wav").arg(mode));
-            QFile::remove(decodedPath);
-            const QString sout = QStringLiteral("#transcode{acodec=s16l,channels=1,samplerate="
-                                                "48000}:std{access=file,mux=wav,dst=%1}")
-                                     .arg(QDir::toNativeSeparators(decodedPath));
-            QProcess vlc;
-            vlc.setProcessChannelMode(QProcess::MergedChannels);
-            QEventLoop vlcLoop;
-            QTimer vlcTimeout;
-            vlcTimeout.setSingleShot(true);
-            bool vlcFinished = false;
-            QObject::connect(&vlc, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
-                             &vlcLoop, [&](int, QProcess::ExitStatus) {
-                                 vlcFinished = true;
-                                 vlcLoop.quit();
-                             });
-            QObject::connect(&vlc, &QProcess::errorOccurred, &vlcLoop,
-                             [&](QProcess::ProcessError) { vlcLoop.quit(); });
-            QObject::connect(&vlcTimeout, &QTimer::timeout, &vlcLoop, [&] {
-                vlc.kill();
-                vlcLoop.quit();
-            });
-            const QStringList vlcArgs{"--no-one-instance", "--intf=dummy",
-                                      "--no-video",        "--play-and-exit",
-                                      "--stop-time=1",     "--sout=" + sout,
-                                      "--sout-keep",       streamUrl.toString(QUrl::FullyEncoded)};
-            vlc.start(vlcPath, vlcArgs);
-            vlcTimeout.start(90000);
-            if (!vlcFinished && vlc.state() != QProcess::NotRunning)
-                vlcLoop.exec();
-            if (vlcTimeout.isActive())
-                vlcTimeout.stop();
-            if (vlc.state() != QProcess::NotRunning) {
-                vlc.kill();
-                vlc.waitForFinished(3000);
+            struct VlcResult {
+                bool finished = false;
+                bool timedOut = false;
+                QProcess::ExitStatus exitStatus = QProcess::CrashExit;
+                int exitCode = -1;
+                QString output;
+                QString log;
+            };
+            const auto runVlc = [&](const QString& input, const QString& outputPath,
+                                    const QString& logPath) {
+                VlcResult result;
+                QFile::remove(outputPath);
+                QFile::remove(logPath);
+                const QString sout =
+                    QStringLiteral("#transcode{acodec=s16l,channels=1,samplerate=48000}:"
+                                   "std{access=file,mux=wav,dst=%1}")
+                        .arg(QDir::toNativeSeparators(outputPath));
+                QProcess vlc;
+                vlc.setProcessChannelMode(QProcess::MergedChannels);
+                QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+                env.remove("QT_PLUGIN_PATH");
+                env.remove("QT_QPA_PLATFORM_PLUGIN_PATH");
+                env.insert("PATH", QFileInfo(vlcPath).absolutePath() + QLatin1Char(';') +
+                                       qEnvironmentVariable("SystemRoot") +
+                                       QStringLiteral("\\System32;") +
+                                       qEnvironmentVariable("SystemRoot"));
+                vlc.setProcessEnvironment(env);
+                QEventLoop vlcLoop;
+                QTimer vlcTimeout;
+                vlcTimeout.setSingleShot(true);
+                QObject::connect(&vlc, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+                                 &vlcLoop, [&](int, QProcess::ExitStatus) {
+                                     result.finished = true;
+                                     vlcLoop.quit();
+                                 });
+                QObject::connect(&vlc, &QProcess::errorOccurred, &vlcLoop,
+                                 [&](QProcess::ProcessError) { vlcLoop.quit(); });
+                QObject::connect(&vlcTimeout, &QTimer::timeout, &vlc, [&] {
+                    result.timedOut = true;
+                    vlc.kill();
+                    vlcLoop.quit();
+                });
+                const QStringList vlcArgs{"--no-one-instance",    "--intf=dummy",   "--no-video",
+                                          "--play-and-exit",      "--stop-time=1",  "--no-loop",
+                                          "--no-repeat",          "--file-logging", "--verbose=2",
+                                          "--logfile=" + logPath, "--sout=" + sout, input};
+                vlc.start(vlcPath, vlcArgs);
+                vlcTimeout.start(30000);
+                if (!result.finished && vlc.state() != QProcess::NotRunning)
+                    vlcLoop.exec();
+                if (vlcTimeout.isActive())
+                    vlcTimeout.stop();
+                if (vlc.state() != QProcess::NotRunning) {
+                    vlc.kill();
+                    vlc.waitForFinished(3000);
+                }
+                result.exitStatus = vlc.exitStatus();
+                result.exitCode = vlc.exitCode();
+                result.output = QString::fromLocal8Bit(vlc.readAllStandardOutput());
+                QFile log(logPath);
+                if (log.open(QIODevice::ReadOnly))
+                    result.log = QString::fromLocal8Bit(log.readAll());
+                return result;
+            };
+            const QString localOutput = temp.filePath(QStringLiteral("vlc-local-%1.wav").arg(mode));
+            const QString localLog = temp.filePath(QStringLiteral("vlc-local-%1.log").arg(mode));
+            const VlcResult localResult =
+                runVlc(QUrl::fromLocalFile(sourceFile.fileName()).toString(QUrl::FullyEncoded),
+                       localOutput, localLog);
+            if (localResult.timedOut || !localResult.finished ||
+                localResult.exitStatus != QProcess::NormalExit || localResult.exitCode != 0) {
+                temp.setAutoRemove(false);
+                QFAIL(qPrintable(QStringLiteral("VLC local-file baseline failed: timed_out=%1 "
+                                                "finished=%2 status=%3 code=%4 "
+                                                "stdout=%5 log=%6 artifacts=%7")
+                                     .arg(localResult.timedOut)
+                                     .arg(localResult.finished)
+                                     .arg(int(localResult.exitStatus))
+                                     .arg(localResult.exitCode)
+                                     .arg(localResult.output, localResult.log, temp.path())));
             }
-            QVERIFY2(vlcFinished,
-                     qPrintable(QStringLiteral("VLC did not finish decoding: %1")
-                                    .arg(QString::fromLocal8Bit(vlc.readAllStandardOutput()))));
-            QVERIFY2(vlc.exitStatus() == QProcess::NormalExit && vlc.exitCode() == 0,
-                     qPrintable(QStringLiteral("VLC failed: %1")
-                                    .arg(QString::fromLocal8Bit(vlc.readAllStandardOutput()))));
+            qInfo().noquote() << QStringLiteral("VLC_LOCAL_DECODE_OK mode=%1 bytes=%2")
+                                     .arg(mode)
+                                     .arg(QFileInfo(localOutput).size());
+
+            const QString vlcLog = temp.filePath(QStringLiteral("vlc-stream-%1.log").arg(mode));
+            const VlcResult vlcResult =
+                runVlc(streamUrl.toString(QUrl::FullyEncoded), decodedPath, vlcLog);
+            if (vlcResult.timedOut || !vlcResult.finished ||
+                vlcResult.exitStatus != QProcess::NormalExit || vlcResult.exitCode != 0) {
+                temp.setAutoRemove(false);
+                QFAIL(qPrintable(
+                    QStringLiteral(
+                        "VLC HTTP decode failed: timed_out=%1 finished=%2 status=%3 code=%4 "
+                        "stdout=%5 log=%6 artifacts=%7")
+                        .arg(vlcResult.timedOut)
+                        .arg(vlcResult.finished)
+                        .arg(int(vlcResult.exitStatus))
+                        .arg(vlcResult.exitCode)
+                        .arg(vlcResult.output, vlcResult.log, temp.path())));
+            }
             QFile decoded(decodedPath);
             QVERIFY2(decoded.open(QIODevice::ReadOnly),
                      qPrintable(QStringLiteral("VLC did not produce output: %1").arg(decodedPath)));
@@ -397,7 +563,8 @@ class IntegrationTests final : public QObject {
         QTRY_VERIFY_WITH_TIMEOUT(restoredReady.count() > 0, 60000);
         const auto restoredMap = findSession(restoredSessions, id);
         QCOMPARE(restoredMap.value("selected").toInt(), 0);
-        QVERIFY(restoredMap.value("downloaded").toLongLong() > 0);
+        QTRY_VERIFY_WITH_TIMEOUT(
+            findSession(restoredSessions, id).value("downloaded").toLongLong() > 0, 10000);
         auto restoredHttp = std::make_unique<bitfly::HttpServer>(restored.get());
         QVERIFY(restoredHttp->start());
         const HttpResult resumed = getRange(restoredHttp->url(id + "/0"), 0, 8191);

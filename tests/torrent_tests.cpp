@@ -15,6 +15,12 @@ class TorrentTests final : public QObject {
         QVERIFY(!bitfly::isSafeTorrentPath("folder//file.mkv"));
     }
 
+    void matchesOnlyTheExpectedManagedPath() {
+        QVERIFY(bitfly::sameManagedPath("cache/session/data", "cache/session/./data"));
+        QVERIFY(!bitfly::sameManagedPath("cache/session-a/data", "cache/session-b/data"));
+        QVERIFY(!bitfly::sameManagedPath(QString(), "cache/session/data"));
+    }
+
     void schedulesRequestedPiecesFirstAndBoundsLookAhead() {
         QCOMPARE(bitfly::scheduledPieces(0, 1000, 130, 200, 100, 10), QList<int>({1, 2, 3}));
         QCOMPARE(bitfly::scheduledPieces(950, 100, 20, 10, 100, 11), QList<int>({9}));
@@ -25,6 +31,27 @@ class TorrentTests final : public QObject {
                     .isEmpty());
         QVERIFY(bitfly::scheduledPieces(std::numeric_limits<qint64>::max() - 4, 10, 0, 10, 100, 10)
                     .isEmpty());
+    }
+
+    void advancesStartupBufferAcrossBoundedSchedulingWindows() {
+        constexpr qint64 pieceSize = 16 * 1024;
+        constexpr qint64 startupBytes = 2 * 1024 * 1024;
+        constexpr int lookAhead = 24;
+        constexpr int pieceCount = int(startupBytes / pieceSize);
+        qint64 offset = 0;
+        int windows = 0;
+        while (offset < startupBytes) {
+            const auto pieces =
+                bitfly::scheduledPieces(0, startupBytes, offset, startupBytes - offset,
+                                        int(pieceSize), pieceCount, lookAhead);
+            QVERIFY(!pieces.isEmpty());
+            QCOMPARE(pieces.first(), int(offset / pieceSize));
+            QVERIFY(pieces.size() <= lookAhead);
+            offset += qint64(pieces.size()) * pieceSize;
+            ++windows;
+        }
+        QCOMPARE(offset, startupBytes);
+        QCOMPARE(windows, 6);
     }
 };
 
