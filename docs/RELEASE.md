@@ -1,6 +1,6 @@
 # Windows builds and releases
 
-The Windows workflow builds and tests native x64 and ARM64 packages. Pull requests and pushes to `main` run both architecture jobs. A tag matching `v*` runs both jobs and publishes a GitHub Release only after both have completed successfully. `workflow_dispatch` can also be run against a version tag to repeat the same gated build and publish step.
+The Windows workflow builds and tests native x64 and ARM64 packages. Pull requests and pushes to `main` run both architecture jobs plus the reusable source-quality workflow. A tag matching `v*` runs the same jobs and publishes a GitHub Release only after the quality and both architecture jobs have completed successfully. `workflow_dispatch` can also be run against a version tag to repeat the same gated build and publish step.
 
 The build pins Qt 6.8.3 and aqtinstall 3.3.0. vcpkg is checked out at `84bab45d415d22042bd0b9081aea57f362da3f35` (the 2025.12.12 baseline), which resolves libtorrent to 2.0.11. x64 builds use the Windows Server 2022 runner and the MSVC 2022 x64 Qt kit. ARM64 builds run natively on `windows-11-arm` and use the MSVC 2022 ARM64 Qt kit with the installed v143 toolset.
 
@@ -29,4 +29,31 @@ The packages are not code-signed because the project has no signing certificate 
 
 ## Publishing
 
-Create and push a version tag such as `v0.1.0`. The release job waits for both native builds and their tests, verifies the tag exists, and uploads the ZIP, installer, and SHA-256 files for both architectures. Do not upload locally rebuilt or unverified binaries to the release.
+Create and push a signed version tag such as `v0.1.0`; do not move or delete a
+tag that has already been published. The release job runs only for `v*` tags,
+waits for both native builds and the source-quality job, checks out the tag,
+downloads that run's six architecture artifacts, verifies the expected count, and
+creates the GitHub Release. A hyphen in the tag name marks the release as a
+prerelease. Release notes are generated from the repository history; review the
+generated body before announcing a release. The job creates a new release and
+does not update or replace an existing one.
+
+Do not upload locally rebuilt or unverified binaries to a release. The local
+MinGW x64 package described in STATUS.md is a development artifact and differs
+from the MSVC packages produced by CI; only CI artifacts belong on GitHub.
+
+## Preview 1 publication (2026-10-23)
+
+`v0.1.0-preview.1` points to `9c27337` and is a GPG-signed annotated tag. Run
+`39977378333` passed source quality and both architecture jobs but its publish
+step failed because the release job had no repository checkout for
+`gh release create --verify-tag`. Commit `9003a06` added the checkout. The six
+verified assets from that run were uploaded through the GitHub API as
+prerelease `422010008` and downloaded again to confirm their SHA-256 values.
+That is a documented manual recovery, not the normal automated path.
+
+The corrected automatic publish path has not been exercised by a subsequent tag.
+Validate it on the next intentionally created preview or stable tag; do not move
+`v0.1.0-preview.1` to test it. If a future release job fails after creating a
+draft or release, inspect its state before retrying rather than deleting a
+published tag.

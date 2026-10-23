@@ -6,6 +6,11 @@ torrent names, tracker URLs (possibly private passkeys), peer information and
 paths. Treat the entire application data directory as private. Do not attach
 raw databases/resume files to public issues. There is no log exporter yet.
 
+The default per-user data directory is `%LOCALAPPDATA%\BitFly\BitFly`. It holds
+`sessions.sqlite` and managed media/resume data under `cache\torrents`. Portable
+builds use the same per-user location. A different cache folder selected in
+Settings applies after restart and does not move or erase the previous folder.
+
 BitTorrent exposes your IP address to peers and trackers. Downloading can also
 upload verified pieces. Pause/remove sessions to stop their network activity.
 The app does not promise anonymity. Public discovery is handled by libtorrent;
@@ -24,5 +29,8 @@ manually remove active session files. Disk quota pauses are recovered by freeing
 space, raising a justified quota or removing an inactive cache through the app.
 
 Updates are opt-in checks, at most once per hour, and never install binaries.
-An offline/API error does not prevent local playback. Invalid/newer database
-schemas produce a visible error; back up your data before downgrading versions.
+The check reads GitHub's latest stable release, so prereleases are intentionally
+ignored; with only `v0.1.0-preview.1` published, a current preview installation
+has no stable update to offer. An offline/API error does not prevent local
+playback. Invalid/newer database schemas produce a visible error; back up your
+data before downgrading versions.

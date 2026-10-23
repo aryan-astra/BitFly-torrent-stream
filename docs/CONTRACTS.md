@@ -38,4 +38,6 @@ Do not imply exact VLC playback position; HTTP demand drives scheduling.
 Ownership: torrent agent owns src/torrent and torrent tests; HTTP agent owns
 src/stream and HTTP tests; UI agent owns qml and docs/DESIGN.md. Root owns all
 other paths, CMake, controller, persistence, platform integration, packaging and CI.
-No agents commit. Root coordinates signed commits after tests.
+Agents do not create commits, tags, or pushes. The repository owner reviews changes
+and creates GPG-signed commits; automation must never sign, rewrite history, or
+publish without explicit owner authorization.
