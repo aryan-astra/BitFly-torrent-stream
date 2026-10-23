@@ -12,8 +12,7 @@ Build and test with the project's pinned Qt and vcpkg dependencies, then install
 
 ```powershell
 cmake --install build --config Release --prefix build/stage
-.
-scripts\package.ps1 `
+.\scripts\package.ps1 `
   -Architecture x64 `
   -StagePath build/stage `
   -QtRoot .tools\Qt\6.8.3\msvc2022_64 `

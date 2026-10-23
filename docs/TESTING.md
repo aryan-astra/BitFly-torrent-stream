@@ -7,9 +7,21 @@ tests. The Qt application must also be rendered: `BitFly.exe --screenshot path.p
 captures an actual implemented window and exits with a failure code if capture
 fails. Set QT_SCALE_FACTOR to 1, 1.25, 1.5 and 2 for DPI review.
 
-Acceptance still requires a generated-media local torrent seeded from another
-libtorrent session, verified HTTP bytes through beginning/middle/end seeks,
-and actual VLC decode evidence. Do not confuse a launcher test with playback.
+The integration suite generates an 8 MiB PCM WAV and v1, v2 and hybrid torrents,
+starts a separate throttled loopback libtorrent seeder, and checks verified
+beginning/middle/end HTTP ranges and restart/resume. The v1 magnet and v2 cases
+resolve magnet metadata. Set `BITFLY_TEST_VLC` to the installed `vlc.exe` path to
+additionally decode one second through the real HTTP URL and through a local-file
+baseline, then require both decoded WAVs to match at 91,244 bytes. A launcher
+test alone is not playback evidence. Tests need loopback TCP connections.
+
+On Windows, for a targeted diagnostic run:
+
+```powershell
+$env:BITFLY_TEST_VLC = 'C:/Program Files/VideoLAN/VLC/vlc.exe'
+./build/integration_tests.exe realLibtorrentStreamsRangesAndRestores:v1magnet -o build/integration-v1magnet.txt,txt
+```
+
 ARM64 needs native compile, PE header validation, execution and packaged launch.
 See STATUS.md for checks that have actually run and their results.
 

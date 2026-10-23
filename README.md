@@ -12,6 +12,8 @@ requires its own validation. VLC is required and is not silently installed or
 bundled. Install it from [VideoLAN](https://www.videolan.org/vlc/), or select your
 existing `vlc.exe` in Settings.
 
+![Native Windows x64 application](docs/screenshots/windows-x64.png)
+
 ## Use
 
 Paste a magnet link on the Stream page, or choose **Open torrent file**. Choose

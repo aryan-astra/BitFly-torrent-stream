@@ -1,0 +1,39 @@
+{
+  "platform": "Windows-10-10.0.26300-SP0",
+  "processor": "Intel64 Family 6 Model 154 Stepping 4, GenuineIntel",
+  "runs": [
+    {
+      "firstFrameMs": 1767,
+      "launchToObservedFrameMs": 2467.04,
+      "peakWorkingSetBytes": 193675264,
+      "peakCommittedBytes": 148054016,
+      "availableSystemMemoryAtStartBytes": 1281699840,
+      "cpuSeconds": 1.53125,
+      "idleCpuSeconds": 0.234375,
+      "idleObservedSeconds": 3.014
+    },
+    {
+      "firstFrameMs": 959,
+      "launchToObservedFrameMs": 1048.98,
+      "peakWorkingSetBytes": 199786496,
+      "peakCommittedBytes": 149172224,
+      "availableSystemMemoryAtStartBytes": 1276989440,
+      "cpuSeconds": 1.0625,
+      "idleCpuSeconds": 0.140625,
+      "idleObservedSeconds": 2.985
+    },
+    {
+      "firstFrameMs": 1021,
+      "launchToObservedFrameMs": 1072.29,
+      "peakWorkingSetBytes": 199647232,
+      "peakCommittedBytes": 149094400,
+      "availableSystemMemoryAtStartBytes": 1214013440,
+      "cpuSeconds": 1.234375,
+      "idleCpuSeconds": 0.203125,
+      "idleObservedSeconds": 3.126
+    }
+  ],
+  "conditions": "empty-session app, first frame, 3-second idle, warm filesystem cache after first run; not a controlled cold boot",
+  "medianFirstFrameMs": 1021,
+  "executableBytes": 11411692
+}
