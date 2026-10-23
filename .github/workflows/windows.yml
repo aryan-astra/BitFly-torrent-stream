@@ -229,6 +229,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout release tag
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Download x64 and ARM64 outputs from this successful run
         shell: pwsh
         env:
@@ -247,7 +253,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $assets = @(Get-ChildItem release -Recurse -File | ForEach-Object FullName)
-          $releaseArgs = @('release', 'create', $env:GITHUB_REF_NAME) + $assets + @('--verify-tag', '--generate-notes')
+          $releaseArgs = @('release', 'create', $env:GITHUB_REF_NAME) + $assets + @('--repo', $env:GITHUB_REPOSITORY, '--verify-tag', '--generate-notes')
           if ($env:GITHUB_REF_NAME.Contains('-')) { $releaseArgs += '--prerelease' }
           gh @releaseArgs
           if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed.' }
