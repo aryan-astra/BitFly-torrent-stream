@@ -87,7 +87,9 @@ The workflow now checks out the tag before publishing.
 | ARM64 setup | 20,610,258 | `07D344B2D85371BF9BFCA18C06CF32DAA26C769E22740F9783C8792958485872` |
 
 Each architecture also publishes a `SHA256SUMS` asset. The four downloaded
-release binaries matched those files.
+release binaries matched those files. The downloaded x64 portable package also
+launched with PATH restricted to the package and Windows directories, rendered
+a first frame, and exited 0.
 
 ## Features and limitations
 
