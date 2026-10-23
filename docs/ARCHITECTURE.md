@@ -12,6 +12,12 @@ carry commands; copied QVariant snapshots carry UI state. libtorrent owns its
 internal network/disk threads. HTTP never blocks waiting for pieces. Small
 settings transactions run on the UI thread; large media I/O belongs to libtorrent.
 
+The static QML interface uses Qt's software scene graph. Three warm x64 runs
+measured about 80 MiB peak private committed memory and 130 MiB peak working set,
+down from about 141 MiB and 185–191 MiB with the hardware renderer, with a 718 ms
+median first frame. Startup remains sensitive to machine pressure; this choice
+reduces renderer allocation without changing the streaming engine.
+
 ByteSource is the module boundary: opaque file IDs, length/MIME description,
 range demand, and nonblocking verified reads. HTTP has no filesystem interface.
 Unpredictable tokens and a loopback-only random port limit local exposure.

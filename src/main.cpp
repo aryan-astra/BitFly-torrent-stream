@@ -16,6 +16,8 @@
 int main(int argc, char** argv) {
     QElapsedTimer startup;
     startup.start();
+    // This static interface uses less memory without allocating a GPU render context.
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
     QGuiApplication application(argc, argv);
     QQuickStyle::setStyle("Basic");
     application.setOrganizationName("BitFly");
