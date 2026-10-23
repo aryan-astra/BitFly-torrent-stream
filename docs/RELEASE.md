@@ -1,0 +1,32 @@
+# Windows builds and releases
+
+The Windows workflow builds and tests native x64 and ARM64 packages. Pull requests and pushes to `main` run both architecture jobs. A tag matching `v*` runs both jobs and publishes a GitHub Release only after both have completed successfully. `workflow_dispatch` can also be run against a version tag to repeat the same gated build and publish step.
+
+The build pins Qt 6.8.3 and aqtinstall 3.3.0. vcpkg is checked out at `84bab45d415d22042bd0b9081aea57f362da3f35` (the 2025.12.12 baseline), which resolves libtorrent to 2.0.11. x64 builds use the Windows Server 2022 runner and the MSVC 2022 x64 Qt kit. ARM64 builds run natively on `windows-11-arm` and use the MSVC 2022 ARM64 Qt kit with the installed v143 toolset.
+
+Each architecture job runs the QtTest suite, installs the application into a clean staging directory, deploys the Qt DLLs, QML imports, and matching app-local MSVC runtime with `windeployqt`, copies the vcpkg runtime DLLs and license notices, validates that every staged EXE and DLL has the requested PE machine type, then creates a portable ZIP and an Inno Setup per-user installer. CI downloads the pinned Inno Setup release asset and verifies its Authenticode signature and publisher before installation. A SHA-256 file accompanies each architecture's outputs. The release job uploads only the artifacts from that successful workflow run.
+
+## Local packaging
+
+Build and test with the project's pinned Qt and vcpkg dependencies, then install to a staging directory. From the repository root, run:
+
+```powershell
+cmake --install build --config Release --prefix build/stage
+.
+scripts\package.ps1 `
+  -Architecture x64 `
+  -StagePath build/stage `
+  -QtRoot .tools\Qt\6.8.3\msvc2022_64 `
+  -VcpkgRoot .tools\vcpkg `
+  -OutputDir dist
+```
+
+For a local build that uses a static MinGW libtorrent and external OpenSSL, pass the relevant dependency directories explicitly instead of `-VcpkgRoot`; for example `-RuntimeDir @('.tools\openssl\ucrt64\bin', '<matching MinGW bin directory>')`. The script copies DLLs from every supplied directory and checks their PE architecture. Use `-Architecture arm64` with the ARM64 kit and its matching dependency directories for a native ARM64 build. Install Inno Setup 6 to generate the installer. If it is absent, local packaging reports that installer generation was skipped; pass `-RequireInstaller` when the installer is a required output. CI always requires it.
+
+The Qt deployment contains Qt's versioned SPDX records and the project third-party notices. Review those records and notices whenever Qt or vcpkg dependencies change. Qt's Windows deployment and licensing guides describe the DLL deployment model, module terms, and third-party components: [Qt 6.8 Windows deployment](https://doc.qt.io/qt-6.8/windows-deployment.html), [Qt 6.8 licensing](https://doc.qt.io/qt-6.8/licensing.html), and [Qt 6.8 third-party components](https://doc.qt.io/qt-6.8/licenses-used-in-qt.html).
+
+The packages are not code-signed because the project has no signing certificate configured. Windows may show the normal publisher warning until a release certificate is provisioned and signing is added. MSVC builds bundle the compiler runtime DLLs app-locally; they do not run a redistributable installer.
+
+## Publishing
+
+Create and push a version tag such as `v0.1.0`. The release job waits for both native builds and their tests, verifies the tag exists, and uploads the ZIP, installer, and SHA-256 files for both architectures. Do not upload locally rebuilt or unverified binaries to the release.

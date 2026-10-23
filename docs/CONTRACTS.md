@@ -28,6 +28,8 @@ Invokables: openInput(QString), openTorrent(QUrl), play(QString id,int fileIndex
 enqueue(QString id,int fileIndex), moveQueue(int from,int to), removeQueue(int index),
 pause(QString id,bool paused), remove(QString id,bool deleteData),
 setVlcPath(QUrl), setCachePath(QUrl), checkUpdates(), clearError(), relaunch(QString id).
+Additional invokables: playQueued(int index), finishSession(QString id,QString action)
+where action is keep, delete or seed. Engine stopped() completes asynchronous shutdown.
 Signal playbackEnded(QString id) prompts Keep/Delete/Seed in QML; signal changed()
 notifies aggregate properties. Changes saved transactionally through SQLite.
 QML root Main.qml, module BitFly, loaded qrc:/qt/qml/BitFly/qml/Main.qml (main may adjust).
