@@ -1,0 +1,7 @@
+/.tools/
+/build*/
+/dist/
+/.cache/
+*.user
+*.log
+__pycache__/
