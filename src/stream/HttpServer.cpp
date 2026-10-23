@@ -85,6 +85,13 @@ bool isLoopback(const QHostAddress& address) {
            (address.protocol() == QAbstractSocket::IPv6Protocol && address.toIPv4Address() != 0 &&
             QHostAddress(address.toIPv4Address()).isLoopback());
 }
+
+bool isExpectedHost(const QByteArray& host, quint16 port) {
+    const QByteArray normalized = host.toLower();
+    return normalized == "localhost" || normalized == "127.0.0.1" ||
+           normalized == "localhost:" + QByteArray::number(port) ||
+           normalized == "127.0.0.1:" + QByteArray::number(port);
+}
 } // namespace
 
 struct HttpServer::Client {
@@ -269,10 +276,15 @@ void HttpServer::readRequest(Client* client) {
         respond(client, 400, "Bad Request");
         return;
     }
+    if (headers.contains("host") &&
+        !isExpectedHost(headers.value("host"), d->server.serverPort())) {
+        respond(client, 400, "Bad Request");
+        return;
+    }
 
     const QUrl target = QUrl::fromEncoded(requestParts[1], QUrl::StrictMode);
-    if (!target.isValid() || target.hasQuery() || target.hasFragment() ||
-        !target.path().startsWith("/")) {
+    if (!target.isValid() || !target.isRelative() || !target.authority().isEmpty() ||
+        target.hasQuery() || target.hasFragment() || !target.path().startsWith("/")) {
         respond(client, 400, "Bad Request");
         return;
     }

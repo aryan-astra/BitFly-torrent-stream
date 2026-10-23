@@ -153,6 +153,14 @@ class HttpTests final : public QObject {
         const QByteArray missingHost =
             exchange(url, "GET " + url.path(QUrl::FullyEncoded).toUtf8() + " HTTP/1.1\r\n\r\n");
         QVERIFY(missingHost.startsWith("HTTP/1.1 400 Bad Request\r\n"));
+        const QByteArray rebindingHost =
+            exchange(url, "GET " + url.path(QUrl::FullyEncoded).toUtf8() +
+                              " HTTP/1.1\r\nHost: rebinding.example\r\n\r\n");
+        QVERIFY(rebindingHost.startsWith("HTTP/1.1 400 Bad Request\r\n"));
+        const QByteArray absoluteTarget =
+            exchange(url, "GET http://localhost" + url.path(QUrl::FullyEncoded).toUtf8() +
+                              " HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        QVERIFY(absoluteTarget.startsWith("HTTP/1.1 400 Bad Request\r\n"));
         const QByteArray overflowRange = get(url, "Range: bytes=9223372036854775808-\r\n");
         QVERIFY(overflowRange.startsWith("HTTP/1.1 416 Range Not Satisfiable\r\n"));
         QCOMPARE(source.demandCalls, 0);
@@ -226,8 +234,16 @@ class HttpTests final : public QObject {
         QTRY_VERIFY_WITH_TIMEOUT(source.demandCalls > 0, 1500);
         socket.abort();
         const int demandsAtDisconnect = source.demandCalls;
-        QTest::qWait(100);
-        QCOMPARE(source.demandCalls, demandsAtDisconnect);
+        // The server can complete one already-scheduled poll before the TCP close is
+        // observed. What matters is that polling then stops permanently.
+        QTest::qWait(250);
+        const int settled = source.demandCalls;
+        QVERIFY2(settled - demandsAtDisconnect <= 2,
+                 qPrintable(QStringLiteral("polling continued after disconnect: %1 -> %2")
+                                .arg(demandsAtDisconnect)
+                                .arg(settled)));
+        QTest::qWait(250);
+        QCOMPARE(source.demandCalls, settled);
     }
 
     void doesNotInventBytesForAnIncompleteVerifiedRead() {
