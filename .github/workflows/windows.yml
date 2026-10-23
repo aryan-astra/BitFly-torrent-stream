@@ -61,6 +61,24 @@ jobs:
             throw "Expected native $expected runner, got $([Runtime.InteropServices.RuntimeInformation]::OSArchitecture)."
           }
 
+      - name: Prepare vcpkg binary archive cache
+        id: vcpkg-archive
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:ImageVersion)) { throw 'Hosted runner ImageVersion is unavailable; refusing an unstable cache key.' }
+          $archivePath = Join-Path $env:LOCALAPPDATA 'vcpkg/archives'
+          New-Item -ItemType Directory -Force -Path $archivePath | Out-Null
+          "path=$archivePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "version=$env:ImageVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "VCPKG_DEFAULT_BINARY_CACHE=$archivePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Restore vcpkg binary archives
+        id: vcpkg-cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ steps.vcpkg-archive.outputs.path }}
+          key: vcpkg-84bab45d415d22042bd0b9081aea57f362da3f35-${{ matrix.arch }}-${{ hashFiles('scripts/vcpkg-triplets/*.cmake') }}-${{ steps.vcpkg-archive.outputs.version }}
+
       - name: Install pinned Qt 6.8.3
         shell: pwsh
         run: |
@@ -88,6 +106,13 @@ jobs:
           & .tools/vcpkg/vcpkg.exe install "libtorrent:${{ matrix.vcpkg_triplet }}" --disable-metrics --overlay-triplets=scripts/vcpkg-triplets
           if ($LASTEXITCODE -ne 0) { throw 'vcpkg dependency installation failed.' }
 
+      - name: Save vcpkg binary archives
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ steps.vcpkg-archive.outputs.path }}
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
       - name: Install signed Inno Setup 6.4.3
         shell: pwsh
         run: |
@@ -98,8 +123,8 @@ jobs:
             throw "Inno Setup installer signature was not valid for the expected publisher: $($signature.Status) $($signature.SignerCertificate.Subject)"
           }
           $installDir = Join-Path $env:GITHUB_WORKSPACE '.tools/InnoSetup'
-          & $installer /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER "/DIR=$installDir"
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup installer failed with exit code $LASTEXITCODE" }
+          $install = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', "/DIR=$installDir") -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Inno Setup installer failed with exit code $($install.ExitCode)" }
           $compiler = Join-Path $installDir 'ISCC.exe'
           if (!(Test-Path -LiteralPath $compiler -PathType Leaf)) { throw 'Signed Inno Setup installation did not provide ISCC.exe.' }
           $installDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
@@ -195,5 +220,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $assets = @(Get-ChildItem release -Recurse -File | ForEach-Object FullName)
-          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes
+          $releaseArgs = @('release', 'create', $env:GITHUB_REF_NAME) + $assets + @('--verify-tag', '--generate-notes')
+          if ($env:GITHUB_REF_NAME.Contains('-')) { $releaseArgs += '--prerelease' }
+          gh @releaseArgs
           if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed.' }

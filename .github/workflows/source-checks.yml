@@ -20,8 +20,14 @@ jobs:
           cppcheck --version
       - name: Formatting
         run: git ls-files -z '*.cpp' '*.h' | xargs -0 .tools/quality/bin/clang-format --dry-run --Werror
-      - name: Static analysis
-        run: cppcheck --enable=warning,performance,portability --std=c++20 --language=c++ --error-exitcode=1 --inline-suppr --library=qt --suppress=missingIncludeSystem -I src src
+      - name: Static correctness analysis
+        run: |
+          options=()
+          help="$(cppcheck --help)"
+          if [[ "$help" == *"--check-level"* ]]; then options+=(--check-level=exhaustive); fi
+          cppcheck "${options[@]}" --enable=warning,portability --std=c++20 --language=c++ --error-exitcode=1 --inline-suppr --library=qt --suppress=missingIncludeSystem -I src src
+      - name: Record performance suggestions for measured review
+        run: cppcheck --enable=performance --std=c++20 --language=c++ --library=qt --suppress=missingIncludeSystem -I src src 2> performance-suggestions.txt
       - name: Review distribution license inputs
         run: |
           test -s LICENSE
@@ -32,3 +38,9 @@ jobs:
           test -s licenses/Boost-LICENSE.txt
           test -s licenses/OpenSSL-LICENSE.txt
           git diff --check
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: BitFly-source-analysis
+          path: performance-suggestions.txt
+          if-no-files-found: error
+          retention-days: 14

@@ -32,9 +32,9 @@ if (!(Test-Path -LiteralPath $windeployqt -PathType Leaf)) { throw "windeployqt 
 
 $isMsvc = $qt -match 'msvc'
 if ($isMsvc) {
-    & $windeployqt --release --no-translations --no-compiler-runtime --qmldir (Join-Path $repo 'qml') $exe
+    & $windeployqt --release --no-translations --skip-plugin-types qmltooling --exclude-plugins qsqlmimer,qsqlodbc,qsqlpsql --no-compiler-runtime --qmldir (Join-Path $repo 'qml') $exe
 } else {
-    & $windeployqt --release --no-translations --qmldir (Join-Path $repo 'qml') $exe
+    & $windeployqt --release --no-translations --skip-plugin-types qmltooling --exclude-plugins qsqlmimer,qsqlodbc,qsqlpsql --qmldir (Join-Path $repo 'qml') $exe
 }
 if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with exit code $LASTEXITCODE" }
 
