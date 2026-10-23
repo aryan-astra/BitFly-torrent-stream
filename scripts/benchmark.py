@@ -30,6 +30,8 @@ for _ in range(args.runs):
         observed_frame_ms = None
         frame_cpu_seconds = None
         frame_observed_at = None
+        idle_cpu_seconds = None
+        idle_observed_seconds = None
         while child.poll() is None:
             try:
                 memory = process.memory_info()
@@ -43,6 +45,9 @@ for _ in range(args.runs):
                 observed_frame_ms = round((time.perf_counter() - start) * 1000, 2)
                 frame_cpu_seconds = cpu_seconds
                 frame_observed_at = time.perf_counter()
+            if frame_observed_at is not None and idle_cpu_seconds is None and time.perf_counter() - frame_observed_at >= 2:
+                idle_cpu_seconds = max(0.0, cpu_seconds - frame_cpu_seconds)
+                idle_observed_seconds = round(time.perf_counter() - frame_observed_at, 3)
             if time.perf_counter() - start > 20:
                 child.kill()
                 raise RuntimeError("Benchmark process failed to exit")
@@ -52,8 +57,7 @@ for _ in range(args.runs):
         results.append({**json.loads(marker.read_text()), "launchToObservedFrameMs": observed_frame_ms,
                         "peakWorkingSetBytes": peak_rss, "peakCommittedBytes": peak_committed,
                         "availableSystemMemoryAtStartBytes": available_at_start, "cpuSeconds": cpu_seconds,
-                        "idleCpuSeconds": max(0.0, cpu_seconds - (frame_cpu_seconds or 0.0)),
-                        "idleObservedSeconds": round(time.perf_counter() - frame_observed_at, 3) if frame_observed_at else None})
+                        "idleCpuSeconds": idle_cpu_seconds, "idleObservedSeconds": idle_observed_seconds})
 report = {"platform": platform.platform(), "processor": platform.processor(), "runs": results,
           "conditions": "empty-session app, first frame, 3-second idle, warm filesystem cache after first run; not a controlled cold boot",
           "medianFirstFrameMs": statistics.median(row["firstFrameMs"] for row in results),
