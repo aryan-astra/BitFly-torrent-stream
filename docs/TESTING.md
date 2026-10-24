@@ -1,6 +1,6 @@
 # Testing
 
-Build with `BUILD_TESTING=ON` (the default). CTest registers five suites:
+Build with `BUILD_TESTING=ON` (the default). CTest registers six suites:
 
 | Test | What it covers |
 | --- | --- |
@@ -8,15 +8,23 @@ Build with `BUILD_TESTING=ON` (the default). CTest registers five suites:
 | `torrent` | Scheduler deadlines, path handling, and deterministic streaming rules |
 | `app` | Version parsing and transactional SQLite persistence, including future-schema refusal |
 | `integration` | Real libtorrent sessions against a local throttled seeder, with optional VLC decode |
+| `recovery` | Corrupt v1/v2 resume fallback and cache-quota admission/recovery |
 | `qml_smoke` | Headless load and interaction checks for the actual `Main.qml` |
 
 ```powershell
 ctest --test-dir build --output-on-failure
 ```
 
+The `app` suite also injects truncated JSON, non-object JSON and a missing
+`value` field into stored settings. Each case must report an error, refuse
+subsequent multi-key writes, and preserve the corrupt row and unrelated values.
+JSON null remains valid. A conflicting SQLite schema verifies that failed
+initialization does not advance `user_version`.
+
 `http`, `torrent`, `app` and `qml_smoke` use local deterministic data and need no
 public swarm. The local evidence run excluded the long `integration` suite and
-passed the other four in 2.46 seconds. CI runs all five. `qml_smoke` loads the QML
+passed the other four in 2.46 seconds. CI now runs all six, including `recovery`.
+`qml_smoke` loads the QML
 with a contract-shaped mock controller, checks navigation, stable delegate
 identity, selection preservation, and QML warnings, then renders a frame. It is a
 smoke test, not proof of native file dialogs, keyboard traversal, or
@@ -34,6 +42,10 @@ baseline, then require both decoded WAVs to match at 91,244 bytes. A launcher
 test alone is not playback evidence. Tests need loopback TCP connections. The CI
 integration run is allowed 300 seconds.
 
+CTest runs the four original transfer rows as `integration` and the three new
+fault rows as `recovery`, each with its own 300-second budget. No original row
+is skipped and neither timeout is increased.
+
 On Windows, for a targeted diagnostic run:
 
 ```powershell
@@ -44,6 +56,20 @@ $env:BITFLY_TEST_VLC = 'C:/Program Files/VideoLAN/VLC/vlc.exe'
 The local VLC-decode evidence was 6/6 in 144,725 ms across v1 torrent, v1 magnet,
 v2 magnet, and hybrid torrent modes. That result is recorded in
 [STATUS.md](STATUS.md); it is not reproduced by a launcher-only run.
+
+The integration suite also has `v1-corrupt-resume`, `v2-corrupt-resume` and
+`v1-quota` fault rows. The resume rows damage the saved resume bytes after a
+clean stop, require fallback to stored metadata, and verify restored HTTP
+content. The quota row denies admission with a zero-byte quota, then raises it
+and explicitly selects the file before continuing. These are not physical
+disk-full or abrupt-process-kill simulations. Run only the new rows with:
+
+```powershell
+./build/integration_tests.exe `
+  realLibtorrentStreamsRangesAndRestores:v1-corrupt-resume `
+  realLibtorrentStreamsRangesAndRestores:v2-corrupt-resume `
+  realLibtorrentStreamsRangesAndRestores:v1-quota
+```
 
 To smoke-test a staged or installed package, run the application with a probe
 path and a bounded lifetime:

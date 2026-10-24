@@ -7,6 +7,12 @@ development-preview phase; pre-1.0 releases may change behavior.
 
 ## Unreleased
 
+### Fixed
+
+- Refuse writes after detecting a malformed saved setting, preserving queue,
+  history and preferences instead of overwriting them with fallback values.
+- Preserve the SQLite schema version when database initialization fails.
+
 ## 0.1.0-preview.1 - 2026-10-23
 
 First public development preview, published as a GitHub prerelease for Windows

@@ -34,3 +34,10 @@ ignored; with only `v0.1.0-preview.1` published, a current preview installation
 has no stable update to offer. An offline/API error does not prevent local
 playback. Invalid/newer database schemas produce a visible error; back up your
 data before downgrading versions.
+
+In unreleased source builds, an invalid stored JSON setting also produces an
+error and blocks further database writes. This preserves the damaged row and
+other saved settings instead of overwriting them with defaults. Close BitFly and
+back up `sessions.sqlite` and any remaining `-wal`/`-shm` sidecars before repairing
+the database. No automatic reset or deletion is performed. The published
+`v0.1.0-preview.1` binaries do not yet contain this safeguard.

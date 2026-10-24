@@ -5,6 +5,29 @@ x64. This records execution evidence, not production certification. The
 authoritative preview is GitHub release `422010008`, published
 2026-10-23T15:32:38Z as prerelease `v0.1.0-preview.1`.
 
+## Continuation validation (2026-10-23)
+
+Three added local fault scenarios passed (5 QtTest entries including setup and
+cleanup, 158,290 ms): corrupt v1 resume, corrupt v2 resume, and zero-quota
+admission followed by raising the quota and explicitly selecting the media.
+The corrupt-resume cases overwrite `.fastresume` after shutdown, observe the
+stored-metadata fallback in a fresh engine, and verify restored HTTP bytes.
+The quota case verifies no downloaded bytes or ready signal before increasing
+the limit. These runs did not enable the optional VLC decode check.
+
+This is focused resume-corruption and quota-admission evidence, not physical
+disk-full, process-kill, or sustained concurrency validation. Only the test
+target was rebuilt; the application executable and published assets were not.
+
+On 2026-10-24, SQLite fault tests reproduced four failures in the pre-fix store:
+three malformed-setting cases and a failed-initialization schema-version change.
+The unreleased fix reports invalid stored JSON and refuses further writes,
+preserving both the damaged row and unrelated saved values. Initialization now
+returns on failure before advancing `user_version`. The affected platform
+library and `app_tests` target compiled; all 9 QtTest entries passed in 891 ms,
+including the existing persistence and future-schema tests. This source fix is
+not present in the unchanged preview release binaries.
+
 ## Local x64 build and streaming
 
 - Qt 6.8.3 with MinGW 13.1, libtorrent 2.0.11, Boost 1.86 and OpenSSL 3.6.5.
@@ -13,7 +36,7 @@ authoritative preview is GitHub release `422010008`, published
   scaling, plus the 780x540 minimum window. Navigation, stable delegate
   identity, selection preservation and the warning gate passed. Fixtures use
   synthetic data.
-- CTest registers five suites: `http`, `torrent`, `app`, `integration` and
+- At the preview checkpoint, CTest registered five suites: `http`, `torrent`, `app`, `integration` and
   `qml_smoke`. Excluding the separately-run integration binary, the other four
   passed 4/4 in 2.46 seconds on the final tree. The HTTP disconnect-polling test
   was hardened against a one-poll teardown race and passed 30 consecutive runs.

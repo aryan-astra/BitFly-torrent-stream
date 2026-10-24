@@ -300,7 +300,7 @@ the toolchain. `THIRD_PARTY_NOTICES.md` records licenses and sources.
 
 ## H. Testing and validation
 
-CTest registers five suites:
+CTest now registers six suites (the preview evidence below used five):
 
 ```powershell
 ctest --test-dir build --output-on-failure
@@ -312,6 +312,7 @@ ctest --test-dir build --output-on-failure
 | `torrent` | Deadline/scheduler calculations and path rules |
 | `app` | Stable-version parsing, SQLite transactions, future-schema refusal |
 | `integration` | Real libtorrent v1/v2/hybrid/magnet sessions against a local throttled seeder, ranges, resume, optional VLC decode |
+| `recovery` | Corrupt v1/v2 resume fallback and zero-quota admission/recovery |
 | `qml_smoke` | Actual `Main.qml` load, navigation, stable delegate identity, selection preservation, QML warning gate, frame capture |
 
 Local evidence on the final engineering tree:
@@ -373,7 +374,7 @@ Runs on Ubuntu 24.04 through `windows.yml`'s reusable `quality` job or directly:
 - Pushes with a `v*` tag: the same jobs plus the release job.
 - `workflow_dispatch` can repeat the workflow against a version tag.
 - Each architecture job installs pinned Qt/vcpkg/Inno Setup, builds Release, runs all
-  five CTest suites, installs to a clean stage, runs `scripts/package.ps1`, smoke-tests
+  six CTest suites, installs to a clean stage, runs `scripts/package.ps1`, smoke-tests
   the staged app, and uploads `dist/*` as `BitFly-x64` or `BitFly-arm64` (14-day
   retention).
 - The release job requires `quality` and `build`, checks out the tag with full history,
@@ -546,8 +547,10 @@ Default per-user root:
       <session-uuid>\
         .bitfly-session
         .fastresume
+        .torrent
         .retained            (only for retained data)
-        <torrent files>
+        data\
+          <torrent files>
 ```
 
 The portable build uses the same per-user location; it is not portable-data. A custom
@@ -798,3 +801,45 @@ External references used by the project:
 **Handoff integrity check:** before acting, confirm the branch, tip, tag, release, and
 working-tree state with Git and the GitHub links above. If a fact here is stale, update
 this document rather than working around it silently.
+
+## U. Codex continuation — 2026-10-23–24
+
+The full handoff was read and compared with Git and connected GitHub evidence.
+Remote `main` was `2ea1197`; the signed OpenCode documentation commits `cbdaf8c`
+and `6770f34` were local-only, and this handoff was untracked. Commit `a600bd1`
+preserves the handoff as received. Neither documentation commit was replaced.
+The existing preview, its six assets and successful CI run `39981098649` were
+confirmed; no tag, screenshot, application executable or release asset was
+regenerated during this continuation.
+
+New engineering work:
+
+- Added real-engine fault rows for corrupt v1/v2 `.fastresume` files and zero
+  cache quota followed by raising the quota and explicit selection. All three
+  passed locally: 5 QtTest entries including setup/cleanup, 158,290 ms. A fresh
+  engine fell back to stored metadata and served the expected HTTP bytes.
+  The optional VLC decode check was not enabled for these added runs.
+- Found a silent-loss path: malformed JSON or a missing `value` wrapper returned
+  defaults without marking the store errored, allowing controller persistence to
+  overwrite saved queue/history/preferences. The store now reports the error
+  and refuses later writes. Legitimate JSON null remains supported.
+- Found that failed database initialization could still advance `user_version`.
+  Initialization now returns immediately on failure.
+- The four new SQLite regression cases failed before the correction. After
+  compiling the affected platform library and test target, all 9 app test entries
+  passed in 891 ms, including valid round trips and future-schema refusal.
+- Registered the three new fault rows as a separate `recovery` CTest entry, so
+  the four original integration rows retain their existing 300-second budget.
+  The recovery entry also has a 300-second budget; no original tests are skipped.
+
+These are unreleased source changes. The application executable was not rebuilt
+and `v0.1.0-preview.1` does not contain the persistence fix. Operations, testing,
+status and unreleased changelog entries describe the change. No architecture,
+dependency, runtime or package format changed.
+
+Remaining priorities are physical Windows 10/ARM64 VLC validation, controlled
+disk-full and process-kill recovery, sustained concurrent playback and broader
+codec coverage. The added tests establish quota admission and damaged-resume
+fallback only; they do not close the broader fault-injection gate. The corrected
+automatic release publication path still needs a future intentionally authorized
+tag. Do not recreate or move the existing preview tag.

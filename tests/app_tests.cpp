@@ -92,6 +92,92 @@ class AppTests final : public QObject {
         }
         QSqlDatabase::removeDatabase(connection);
     }
+
+    void refusesWritesAfterCorruptSetting_data() {
+        QTest::addColumn<QByteArray>("corrupt");
+        QTest::newRow("truncated-json") << QByteArray("{");
+        QTest::newRow("non-object") << QByteArray("[]");
+        QTest::newRow("missing-value") << QByteArray("{}");
+    }
+
+    void refusesWritesAfterCorruptSetting() {
+        QFETCH(QByteArray, corrupt);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto path = directory.filePath("corrupt-setting.sqlite");
+        {
+            SessionStore store(path);
+            QVERIFY(store.putMany(
+                {{"queue", QVariantList{QStringLiteral("saved media")}}, {"advanced", true}}));
+            QVERIFY(store.put("nullable", QVariant()));
+            QVERIFY(store.get("nullable").isNull());
+            QVERIFY(store.error().isEmpty());
+        }
+        const auto connection = QUuid::createUuid().toString();
+        {
+            auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+            db.setDatabaseName(path);
+            QVERIFY(db.open());
+            QSqlQuery q(db);
+            QVERIFY(q.prepare("UPDATE settings SET value=? WHERE key='queue'"));
+            q.addBindValue(corrupt);
+            QVERIFY(q.exec());
+            QCOMPARE(q.numRowsAffected(), 1);
+        }
+        QSqlDatabase::removeDatabase(connection);
+        {
+            SessionStore store(path);
+            QVERIFY(store.error().isEmpty());
+            QVERIFY(store.get("queue", QVariantList{}).toList().isEmpty());
+            QVERIFY2(!store.error().isEmpty(),
+                     "Corrupt stored JSON must not silently use defaults.");
+            QVERIFY(!store.putMany({{"queue", QVariantList{}}, {"advanced", false}}));
+        }
+        {
+            auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+            db.setDatabaseName(path);
+            QVERIFY(db.open());
+            QSqlQuery q(db);
+            QVERIFY(q.exec("SELECT value FROM settings WHERE key='queue'"));
+            QVERIFY(q.next());
+            QCOMPARE(q.value(0).toByteArray(), corrupt);
+            QVERIFY(q.exec("SELECT value FROM settings WHERE key='advanced'"));
+            QVERIFY(q.next());
+            QCOMPARE(q.value(0).toByteArray(), QByteArray("{\"value\":true}"));
+        }
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    void failedInitializationPreservesSchemaVersion() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto path = directory.filePath("conflicting-schema.sqlite");
+        const auto connection = QUuid::createUuid().toString();
+        {
+            auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+            db.setDatabaseName(path);
+            QVERIFY(db.open());
+            QSqlQuery q(db);
+            QVERIFY(q.exec("CREATE TABLE sentinel(id INTEGER)"));
+            QVERIFY(q.exec("CREATE INDEX settings ON sentinel(id)"));
+        }
+        QSqlDatabase::removeDatabase(connection);
+        {
+            SessionStore store(path);
+            QVERIFY(!store.error().isEmpty());
+            QVERIFY(!store.put("queue", QVariantList{}));
+        }
+        {
+            auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+            db.setDatabaseName(path);
+            QVERIFY(db.open());
+            QSqlQuery q(db);
+            QVERIFY(q.exec("PRAGMA user_version"));
+            QVERIFY(q.next());
+            QCOMPARE(q.value(0).toInt(), 0);
+        }
+        QSqlDatabase::removeDatabase(connection);
+    }
 };
 
 QTEST_GUILESS_MAIN(AppTests)

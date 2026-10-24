@@ -230,14 +230,19 @@ class IntegrationTests final : public QObject {
   private slots:
     void realLibtorrentStreamsRangesAndRestores_data() {
         QTest::addColumn<QString>("mode");
-        QTest::newRow("v1") << QStringLiteral("v1");
-        QTest::newRow("v1magnet") << QStringLiteral("v1magnet");
-        QTest::newRow("v2") << QStringLiteral("v2");
-        QTest::newRow("hybrid") << QStringLiteral("hybrid");
+        QTest::addColumn<QString>("fault");
+        QTest::newRow("v1") << QStringLiteral("v1") << QString();
+        QTest::newRow("v1magnet") << QStringLiteral("v1magnet") << QString();
+        QTest::newRow("v2") << QStringLiteral("v2") << QString();
+        QTest::newRow("hybrid") << QStringLiteral("hybrid") << QString();
+        QTest::newRow("v1-corrupt-resume") << QStringLiteral("v1") << QStringLiteral("resume");
+        QTest::newRow("v2-corrupt-resume") << QStringLiteral("v2") << QStringLiteral("resume");
+        QTest::newRow("v1-quota") << QStringLiteral("v1") << QStringLiteral("quota");
     }
 
     void realLibtorrentStreamsRangesAndRestores() {
         QFETCH(QString, mode);
+        QFETCH(QString, fault);
         QTemporaryDir temp;
         QVERIFY(temp.isValid());
         const QString seedDir = temp.filePath("seed");
@@ -313,6 +318,8 @@ class IntegrationTests final : public QObject {
         seedAlertTimer.start(25);
 
         auto engine = std::make_unique<bitfly::TorrentEngine>(cacheDir);
+        if (fault == "quota")
+            engine->setCacheLimitBytes(0);
         QVariantList latestSessions;
         connect(engine.get(), &bitfly::TorrentEngine::sessionsChanged, this,
                 [&](const QVariantList& value) { latestSessions = value; });
@@ -361,6 +368,14 @@ class IntegrationTests final : public QObject {
             20000);
         const QString id = latestSessions.first().toMap().value("id").toString();
         QVERIFY(!id.isEmpty());
+        if (fault == "quota") {
+            QTRY_VERIFY_WITH_TIMEOUT(
+                !findSession(latestSessions, id).value("error").toString().isEmpty(), 10000);
+            QCOMPARE(findSession(latestSessions, id).value("downloaded").toLongLong(), 0);
+            QCOMPARE(ready.count(), 0);
+            QVERIFY(QFileInfo::exists(QDir(cacheDir).filePath("torrents/" + id + "/.torrent")));
+            engine->setCacheLimitBytes(64 * 1024 * 1024);
+        }
         engine->select(id, 0);
         if (ready.isEmpty() && !ready.wait(60000)) {
             const QString snapshot =
@@ -552,12 +567,25 @@ class IntegrationTests final : public QObject {
         http.reset();
         engine.reset();
 
+        if (fault == "resume") {
+            const QString sessionDir = QDir(cacheDir).filePath("torrents/" + id);
+            QFile resume(QDir(sessionDir).filePath(".fastresume"));
+            QVERIFY(resume.size() > 0);
+            QVERIFY(QFileInfo::exists(QDir(sessionDir).filePath(".torrent")));
+            QVERIFY(QFileInfo::exists(QDir(sessionDir).filePath("data/fixture.wav")));
+            QVERIFY(resume.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            const QByteArray corrupt("not bencoded resume data");
+            QCOMPARE(resume.write(corrupt), qint64(corrupt.size()));
+            resume.close();
+        }
+
         auto restored = std::make_unique<bitfly::TorrentEngine>(cacheDir);
         QVariantList restoredSessions;
         connect(restored.get(), &bitfly::TorrentEngine::sessionsChanged, this,
                 [&](const QVariantList& value) { restoredSessions = value; });
         QSignalSpy restoredReady(restored.get(), &bitfly::TorrentEngine::streamReady);
         QVERIFY(restoredReady.isValid());
+        QSignalSpy restoreDiagnostics(restored.get(), &bitfly::TorrentEngine::diagnostic);
         restored->restore();
         QTRY_VERIFY_WITH_TIMEOUT(!findSession(restoredSessions, id).isEmpty(), 20000);
         QTRY_VERIFY_WITH_TIMEOUT(restoredReady.count() > 0, 60000);
@@ -571,6 +599,12 @@ class IntegrationTests final : public QObject {
         QVERIFY2(resumed.error.isEmpty(), qPrintable(resumed.error));
         QCOMPARE(resumed.status, 206);
         QCOMPARE(resumed.body, expected.left(8192));
+        if (fault == "resume") {
+            bool fallbackObserved = false;
+            for (const auto& diagnostic : restoreDiagnostics)
+                fallbackObserved |= diagnostic.first().toString().contains("falling back");
+            QVERIFY2(fallbackObserved, "Corrupt resume must use stored metadata, not stale state.");
+        }
         QVERIFY(awaitStop(*restored));
     }
 };

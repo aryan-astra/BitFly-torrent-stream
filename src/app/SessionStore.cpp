@@ -23,8 +23,10 @@ SessionStore::SessionStore(const QString& path) {
         return;
     }
     if (!q.exec("PRAGMA journal_mode=WAL") ||
-        !q.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT NOT NULL)"))
+        !q.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT NOT NULL)")) {
         m_error = q.lastError().text();
+        return;
+    }
     if (!q.exec("PRAGMA user_version=1"))
         m_error = q.lastError().text();
 }
@@ -47,7 +49,13 @@ QVariant SessionStore::get(const QString& key, const QVariant& fallback) const {
     if (!q.next())
         return fallback;
     const auto doc = QJsonDocument::fromJson(q.value(0).toByteArray());
-    return doc.isObject() ? doc.object().value("value").toVariant() : fallback;
+    if (!doc.isObject() || !doc.object().contains("value")) {
+        m_error =
+            QStringLiteral("Stored setting '%1' is invalid; refusing to overwrite saved data.")
+                .arg(key);
+        return fallback;
+    }
+    return doc.object().value("value").toVariant();
 }
 bool SessionStore::put(const QString& key, const QVariant& value) {
     return putMany({{key, value}});

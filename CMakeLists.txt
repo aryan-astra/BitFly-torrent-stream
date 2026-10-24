@@ -73,10 +73,23 @@ if(BUILD_TESTING)
     else()
       target_link_libraries(${suite}_tests PRIVATE bitfly_stream bitfly_torrent)
     endif()
-    add_test(NAME ${suite} COMMAND ${suite}_tests)
+    if(suite STREQUAL "integration")
+      add_test(NAME integration COMMAND integration_tests
+        realLibtorrentStreamsRangesAndRestores:v1
+        realLibtorrentStreamsRangesAndRestores:v1magnet
+        realLibtorrentStreamsRangesAndRestores:v2
+        realLibtorrentStreamsRangesAndRestores:hybrid)
+    else()
+      add_test(NAME ${suite} COMMAND ${suite}_tests)
+    endif()
     set_tests_properties(${suite} PROPERTIES TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endforeach()
   set_tests_properties(integration PROPERTIES TIMEOUT 300)
+  add_test(NAME recovery COMMAND integration_tests
+    realLibtorrentStreamsRangesAndRestores:v1-corrupt-resume
+    realLibtorrentStreamsRangesAndRestores:v2-corrupt-resume
+    realLibtorrentStreamsRangesAndRestores:v1-quota)
+  set_tests_properties(recovery PROPERTIES TIMEOUT 300 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   qt_add_executable(qml_smoke tests/qml_smoke.cpp)
   target_link_libraries(qml_smoke PRIVATE Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Test)
   target_compile_definitions(qml_smoke PRIVATE BITFLY_QML_MAIN="${CMAKE_CURRENT_SOURCE_DIR}/qml/Main.qml")
