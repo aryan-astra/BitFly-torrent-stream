@@ -1,40 +1,30 @@
-<p align="center">
-  <img src="docs/branding/bitfly-banner.png" alt="BitFly — a little less waiting. Paper clouds, film frames and a coral magnet in a blue sky." width="100%">
-</p>
+![BitFly — a little less waiting. Paper clouds, film frames and a coral magnet in a blue sky.](docs/branding/bitfly-banner.png)
 
-<h1 align="center"><img src="qml/assets/bitfly-mark.png" width="38" height="38" alt=""> BitFly</h1>
+# BitFly
 
-<p align="center"><strong>Press play before the download is done.</strong><br>Bring a magnet link, choose your video, and start watching while BitFly fetches the pieces ahead of your player.</p>
+**Press play before the download is done.**
 
-<p align="center">A small, native Windows app made with C++ and Qt Quick. Your player handles the screen; BitFly handles the stream.</p>
+BitFly brings a torrent stream to your desktop media player before the whole file has downloaded. Paste a magnet link, choose the video, and press **Play**. BitFly fetches the pieces ahead while VLC, mpv or MPC-HC/BE handles the screen.
 
-<p align="center">
-  <a href="https://github.com/aryan-astra/BitFly-torrent-stream/releases/latest"><img src="https://img.shields.io/github/v/release/aryan-astra/BitFly-torrent-stream?label=stable&style=flat-square&color=ad4739" alt="Stable release"></a>
-  <a href="https://github.com/aryan-astra/BitFly-torrent-stream/actions/workflows/windows.yml"><img src="https://github.com/aryan-astra/BitFly-torrent-stream/actions/workflows/windows.yml/badge.svg" alt="Windows builds"></a>
-  <a href="https://github.com/aryan-astra/BitFly-torrent-stream/releases/latest"><img src="https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-779bb1?style=flat-square" alt="Windows x64 and ARM64"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-303744?style=flat-square" alt="MIT license"></a>
-</p>
+[![Stable release](https://img.shields.io/github/v/release/aryan-astra/BitFly-torrent-stream?label=stable&style=flat-square&color=ad4739)](https://github.com/aryan-astra/BitFly-torrent-stream/releases/latest) [![Windows builds](https://github.com/aryan-astra/BitFly-torrent-stream/actions/workflows/windows.yml/badge.svg)](https://github.com/aryan-astra/BitFly-torrent-stream/actions/workflows/windows.yml) [![Windows x64 and ARM64](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-779bb1?style=flat-square)](https://github.com/aryan-astra/BitFly-torrent-stream/releases/latest) [![MIT license](https://img.shields.io/badge/license-MIT-303744?style=flat-square)](LICENSE)
 
-<p align="center"><a href="#get-bitfly">Download</a> · <a href="#your-first-stream">Get started</a> · <a href="#your-library">Your library</a> · <a href="#for-developers">Build</a></p>
+## Get BitFly
 
-<h2 align="center" id="get-bitfly">Get BitFly</h2>
+**[Download the latest stable release →](https://github.com/aryan-astra/BitFly-torrent-stream/releases/latest)**
 
-<p align="center"><strong><a href="https://github.com/aryan-astra/BitFly-torrent-stream/releases/latest">Download the latest stable release →</a></strong></p>
+| Windows PC | Installer | Portable ZIP | SHA-256 |
+| --- | --- | --- | --- |
+| **x64** · Intel / AMD | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64-setup.exe) | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64.zip) | [Checksum](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64-SHA256SUMS.txt) |
+| **ARM64** · Windows on Arm | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64-setup.exe) | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64.zip) | [Checksum](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64-SHA256SUMS.txt) |
 
-<table align="center">
-  <thead><tr><th align="center">Windows PC</th><th align="center">Installer</th><th align="center">Portable ZIP</th><th align="center">SHA-256</th></tr></thead>
-  <tbody>
-    <tr><td align="center"><strong>x64</strong><br>Intel / AMD</td><td align="center"><a href="https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64-setup.exe">Download</a></td><td align="center"><a href="https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64.zip">Download</a></td><td align="center"><a href="https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64-SHA256SUMS.txt">Checksum</a></td></tr>
-    <tr><td align="center"><strong>ARM64</strong><br>Windows on Arm</td><td align="center"><a href="https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64-setup.exe">Download</a></td><td align="center"><a href="https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64.zip">Download</a></td><td align="center"><a href="https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64-SHA256SUMS.txt">Checksum</a></td></tr>
-  </tbody>
-</table>
+The installer works per user; the portable ZIP runs without installation. Both keep settings and library data in your Windows user profile. The ZIP needs to be replaced manually to stay portable when updating.
 
-<p align="center">Requires Windows 10 1809+ on x64, or Windows 11 on x64 / ARM64, plus an installed media player. VLC 3.x is recommended and enables video-frame previews. VLC, mpv and MPC-HC/BE are supported.</p>
+Requires **Windows 10 1809+ on x64, or Windows 11 on x64 / ARM64**, and an installed media player. VLC 3.x is recommended and is required for video-frame previews. Players are installed separately.
 
 <details>
-<summary>Verify a download</summary>
+<summary>Verify a download's SHA-256</summary>
 
-Download the matching checksum file and compare it in PowerShell:
+Download the matching checksum file, then compare its value in PowerShell:
 
 ```powershell
 Get-FileHash .\BitFly-1.0.3-windows-x64.zip -Algorithm SHA256
@@ -43,63 +33,53 @@ Get-Content .\BitFly-1.0.3-windows-x64-SHA256SUMS.txt
 
 </details>
 
-<h2 align="center" id="your-first-stream">Your first stream</h2>
+## Get going in a minute
 
-<p align="center"><strong>1 · Add a link</strong><br>Paste a magnet link or open a <code>.torrent</code> file.</p>
-<p align="center"><strong>2 · Choose the video</strong><br>Select the media file you want to watch.</p>
-<p align="center"><strong>3 · Press Play</strong><br>BitFly opens your player when the first pieces are ready, then downloads ahead as you watch.</p>
+1. Paste a magnet link or choose **Open .torrent**.
+2. Select the video file you want to watch.
+3. Press **Play**. BitFly opens your media player when the first pieces are ready, then downloads ahead as it plays.
 
-<p align="center">BitFly supports v1, v2 and hybrid torrents. Playback speed depends on the peers available in the swarm.</p>
+BitFly supports **v1, v2 and hybrid torrents**. Playback depends on the swarm: healthy peers help; a quiet or unavailable swarm can leave you waiting.
 
-<h2 align="center" id="your-library">Your library</h2>
+## A little home for what you watch
 
-<p align="center"><img src="docs/screenshots/v1.0.3/library.png" alt="BitFly's cloud-themed library with covers, saved streams and sidebar controls" width="900"></p>
-<p align="center"><em>Sample library entries shown in the app.</em></p>
+![BitFly's cloud-themed library with covers, saved streams and sidebar controls.](docs/screenshots/v1.0.3/library.png)
 
-<p align="center"><strong>Active sessions</strong> keep file selection, progress, buffering and playback controls together.</p>
-<p align="center"><strong>Saved streams</strong> remember magnet links, selected files and artwork across restarts. Stream them again from the library; remove an entry and its saved artwork together.</p>
-<p align="center"><strong>Cover previews</strong> can use a frame captured by VLC or artwork you choose. Covers expand from a circle into a square or landscape shape as they load.</p>
-<p align="center"><strong>The queue</strong> lets you add and reorder streams, and keeps its place when you restart BitFly.</p>
+*Sample library entries shown in the app.*
 
-<h2 align="center" id="make-it-yours">Make it yours</h2>
+- **Active sessions.** File selection, progress, buffer state and player controls in one place.
+- **Saved streams.** Magnets, selected files and artwork survive a restart. Stream an entry again from the library, or remove it and its artwork.
+- **Cover previews.** Use a frame captured by VLC or choose your own artwork. Covers open from a circle into a square or landscape shape as they load.
+- **Queue.** Add and reorder streams, then pick up where you left off after a restart.
 
-<table align="center">
-  <thead><tr><th align="center">Setting</th><th align="center">What it does</th></tr></thead>
-  <tbody>
-    <tr><td align="center">Player</td><td align="center">Choose VLC, mpv or MPC-HC/BE. Playback stays in that app.</td></tr>
-    <tr><td align="center">Storage</td><td align="center">Choose the download folder and cache quota. Folder changes apply to new sessions.</td></tr>
-    <tr><td align="center">Connections</td><td align="center">Set download and upload limits, peer slots, discovery and read-ahead.</td></tr>
-    <tr><td align="center">Search</td><td align="center">Connect your own Jackett or Prowlarr Torznab feed.</td></tr>
-    <tr><td align="center">Updates</td><td align="center">BitFly checks at startup and downloads verified updates; you choose when to install.</td></tr>
-  </tbody>
-</table>
+## Make it yours
 
-<p align="center">BitFly does not provide a torrent catalog. Cloudflare client controls are available only for a separately installed compatible client.</p>
+| In Settings | What it does |
+| --- | --- |
+| **Player** | Choose VLC, mpv, or MPC-HC/BE. Playback stays in that external app. |
+| **Storage** | Choose a download folder and cache quota. A folder change applies to new sessions. |
+| **Connections** | Set download and upload limits, peer slots, discovery and read-ahead. |
+| **Search** | Connect your own Jackett or Prowlarr Torznab feed. BitFly does not provide a torrent catalog. |
+| **Cloudflare** | Control a separately installed compatible client. Nothing is bundled or connected automatically. |
+| **Updates** | Check at startup and download verified updates in the background. You choose when to install. |
 
 <details>
-<summary>How does storage work?</summary>
+<summary>Can BitFly delete played pieces to save disk space?</summary>
 
-BitFly does not delete already-downloaded pieces as playback moves forward. The selected media must fit your available disk space and configured quota. You can change the download folder for future sessions or remove data you no longer need.
+Not currently. Read-ahead controls which pieces receive priority; it does not turn the download into a rolling, self-deleting buffer. Selected media must fit the available disk space and configured quota. A new download folder applies to future sessions.
 
 </details>
 
-<details>
-<summary>Is the portable version fully portable?</summary>
+## For developers
 
-The ZIP runs without installation, but its settings and library stay in your Windows user profile. In-app updates use the installer; replace the ZIP manually to continue using the portable build without registering it as an installed app.
+**C++20 · Qt 6.8.3 / Qt Quick · libtorrent 2.0.11 · Boost 1.86 · OpenSSL · SQLite**
 
-</details>
-
-<h2 align="center" id="for-developers">For developers</h2>
-
-<p align="center">C++20 · Qt 6.8.3 / Qt Quick · libtorrent 2.0.11 · Boost 1.86 · OpenSSL · SQLite</p>
-
-<p align="center">Local development uses MinGW 13.1. GitHub Actions builds and tests native MSVC packages for x64 and ARM64.</p>
+Local development uses MinGW 13.1. GitHub Actions builds and tests native MSVC packages for x64 and ARM64. Use a compiler that matches your Qt kit.
 
 <details>
 <summary>Build locally with the MinGW Qt kit</summary>
 
-Install the matching Qt kit and dependencies, then adjust the paths for your machine:
+Install the matching Qt kit and dependencies first, then adjust these paths:
 
 ```powershell
 git clone https://github.com/aryan-astra/BitFly-torrent-stream.git
@@ -115,14 +95,14 @@ ctest --test-dir build --output-on-failure
 .\build\BitFly.exe
 ```
 
-See [the build guide](docs/BUILD.md) for dependency setup and other toolchains.
+The [build guide](docs/BUILD.md) covers dependency setup and other toolchains.
 
 </details>
 
-<p align="center"><a href="docs/INTEGRATIONS.md">Integrations</a> · <a href="docs/ARCHITECTURE.md">Architecture</a> · <a href="docs/TESTING.md">Testing</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="docs/RELEASE.md">Releases</a> · <a href="THIRD_PARTY_NOTICES.md">Third-party notices</a></p>
+[Integrations](docs/INTEGRATIONS.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing](docs/TESTING.md) · [Contributing](CONTRIBUTING.md) · [Release process](docs/RELEASE.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-<p align="center">The stable x64 and ARM64 release passed hosted build, test and package checks. Some local streaming tests have shown intermittent range timeouts; Windows 10, ARM64 playback and a real installer upgrade still need hardware validation. See <a href="docs/STATUS.md">validation notes</a>.</p>
+The stable x64 and ARM64 release passed hosted build, test and package checks. Local streaming tests have shown intermittent range timeouts; Windows 10, ARM64 playback and a real installer upgrade still need hardware validation. See [validation notes](docs/STATUS.md).
 
-<p align="center">No BitFly account, ads or telemetry. Your library stays on your PC; peers, trackers, search providers and GitHub update checks use their normal network connections.</p>
+No BitFly account, ads or telemetry. Your library stays on your PC. Torrent peers, trackers, configured search services and GitHub update checks still make their normal network connections.
 
-<p align="center">Made by <a href="https://github.com/aryan-astra">Aryan Shukla</a>, with C++ and a little cloud cover.<br><a href="LICENSE">MIT licensed</a> · Dependency details in <a href="THIRD_PARTY_NOTICES.md">third-party notices</a>.</p>
+Made by [Aryan Shukla](https://github.com/aryan-astra), with C++ and a little cloud cover. [MIT licensed](LICENSE); dependency licenses and redistribution notes are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
