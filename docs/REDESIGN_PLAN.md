@@ -74,7 +74,8 @@ publisher signature. See INTEGRATIONS.md for trust boundaries and primary source
 - [x] Measure isolated rendered startup/idle memory and CPU; state what it excludes.
 - [x] Build/package x64 and smoke-test the staged executable/resources/installer.
 - [x] Reconcile architecture/contracts/status/changelog with observed results.
-- [ ] Create signed commits and inspect their complete diff.
+- [x] Create signed commits and inspect their complete diff.
+  Implementation: df5a12c, GPG signature verified locally.
 
 Publication follow-up (outside the active local-only goal): fresh x64/ARM64 CI
 and a stable/latest GitHub release with installers, ZIPs and checksums.
