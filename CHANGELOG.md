@@ -4,6 +4,15 @@ All notable user-visible changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The first stable release is being prepared as 1.0.0.
 
+## 1.0.3 — preview layout and update fixes
+
+- Expand previews across the card and resize their layout with square/landscape
+  artwork, retaining the circle transition and reduced-motion preference.
+- Update the running app folder, including extracted ZIP copies, and save sessions
+  during normal shutdown instead of requiring session removal before installation.
+- Harden cloud release checks: match tags to versions, verify/extract portable
+  packages, test packaged DLLs and support hosted Visual Studio image transitions.
+
 ## 1.0.2 — local automatic-preview reliability fix
 
 - Prefetch the end of MP4/MOV containers and include it in startup readiness.
