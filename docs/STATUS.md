@@ -1,8 +1,34 @@
 # Validation status
 
+## 1.0.1 thumbnail and readability verification — 2026-10-26
+
+Video metadata now prepares a preview without pressing Play. Paused sessions,
+saved file selections and custom artwork remain respected. Capture samples a
+random 30–90 seconds into video, rejects near-black/white/uniform frames, and
+falls back if a seek fails. One delayed retry handles initially unready data.
+This is a visual-quality heuristic, not a studio-logo recognition model.
+
+Nine focused test groups passed; the final controller/preview rerun also passed.
+The added end-to-end test uses a real local torrent seeder, controller selection,
+HTTP stream and installed VLC to persist a non-black movie frame without player
+launch. Additional cases cover a black intro, later seek, past-end fallback,
+blank-frame rejection and image URLs with cache-revision queries. Exhaustive
+application static checks and full C++ formatting passed. Evidence is under
+[validation/v1.0.1](validation/v1.0.1).
+
+Small labels were enlarged to 12px minimum, body controls to 14–15px, secondary
+text darkened, pure-white panels softened and link surfaces made opaque. Main
+text/panel combinations pass 4.5:1 contrast. Minimum 940x640 renders and final
+[extracted portable screenshot](screenshots/v1.0.1/library.png) were inspected.
+The installer and ZIP were rebuilt, their checksums verified, and the extracted
+ZIP rendered using packaged DLLs plus the matching offscreen validation plugin.
+No production installer was executed; no GitHub push or publication occurred.
+
+
+
 ## Local v1 redesign verification — 2026-10-26
 
-The current source is a local 1.0.0 candidate. Nothing was pushed or published.
+The audited 1.0.0 source was a local candidate. Nothing was pushed or published.
 The original B monogram was retained at the user's request; the white interface
 now uses the selected darker sky/paper-cloud background and 3D sidebar icons.
 

@@ -10,7 +10,7 @@ Button {
     hoverEnabled: true
     opacity: enabled ? 1 : 0.48
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: 14
     font.weight: Font.DemiBold
     contentItem: Text {
         text: root.text

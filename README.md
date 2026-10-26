@@ -13,7 +13,7 @@ needs.
 
 ![BitFly running on Windows 11 x64](docs/screenshots/windows-x64.png)
 
-> **Local v1 candidate.** This working tree prepares version 1.0.0 with the new
+> **Local v1 candidate.** This working tree prepares version 1.0.1 with the new
 > library, white cloud interface, search and update controls. It has not been
 > pushed or published. The downloads below remain `v0.1.0-preview.1`, for evaluation, not as
 > a stable or production-certified release. The binaries are not Authenticode

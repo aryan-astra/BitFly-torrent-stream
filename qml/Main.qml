@@ -161,7 +161,7 @@ ApplicationWindow {
                         Label {
                             text: "a little less waiting"
                             color: Theme.secondary
-                            font.pixelSize: 10
+                            font.pixelSize: 12
                         }
                     }
                 }
@@ -169,7 +169,7 @@ ApplicationWindow {
                 Label {
                     text: "YOUR SPACE"
                     color: Theme.faint
-                    font.pixelSize: 10
+                    font.pixelSize: 12
                     font.weight: Font.DemiBold
                     font.letterSpacing: 1.4
                     Layout.leftMargin: 12
@@ -228,7 +228,7 @@ ApplicationWindow {
                             Label {
                                 text: "CACHE"
                                 color: Theme.faint
-                                font.pixelSize: 10
+                                font.pixelSize: 12
                                 font.weight: Font.DemiBold
                                 font.letterSpacing: 1.2
                             }
@@ -238,13 +238,13 @@ ApplicationWindow {
                                                 ? (Number(app.cacheBytes) / (Number(app.cacheLimitGiB) * 1073741824)) * 100
                                                 : 0) + "%"
                                 color: Theme.secondary
-                                font.pixelSize: 10
+                                font.pixelSize: 12
                             }
                         }
                         Label {
                             text: window.humanSize(app.cacheBytes) + " of " + app.cacheLimitGiB + " GiB"
                             color: Theme.ink
-                            font.pixelSize: 11
+                            font.pixelSize: 12
                             font.weight: Font.DemiBold
                         }
                         Item {
@@ -269,7 +269,7 @@ ApplicationWindow {
                             Label {
                                 text: app.playerPath.length > 0 ? app.playerName + " ready" : "Choose a player"
                                 color: Theme.secondary
-                                font.pixelSize: 10
+                                font.pixelSize: 12
                                 Layout.fillWidth: true
                                 elide: Text.ElideRight
                             }
@@ -312,7 +312,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             text: window.pageSubtitle()
                             color: Theme.secondary
-                            font.pixelSize: 11
+                            font.pixelSize: 12
                             elide: Text.ElideRight
                         }
                     }
@@ -334,7 +334,7 @@ ApplicationWindow {
                             Label {
                                 text: (app.sessions ? app.sessions.length : 0) + " active"
                                 color: Theme.secondary
-                                font.pixelSize: 10
+                                font.pixelSize: 12
                                 font.weight: Font.DemiBold
                             }
                         }
@@ -352,14 +352,14 @@ ApplicationWindow {
                             Label {
                                 text: "LOCAL"
                                 color: Theme.accent
-                                font.pixelSize: 10
+                                font.pixelSize: 12
                                 font.weight: Font.DemiBold
                                 font.letterSpacing: 1
                             }
                             Label {
                                 text: window.humanSize(app.cacheBytes)
                                 color: Theme.secondary
-                                font.pixelSize: 10
+                                font.pixelSize: 12
                             }
                         }
                     }
@@ -387,7 +387,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         text: app.error
                         color: Theme.danger
-                        font.pixelSize: 11
+                        font.pixelSize: 12
                         wrapMode: Text.Wrap
                     }
                     QuietButton { text: "Dismiss"; onClicked: app.clearError() }
@@ -413,7 +413,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         text: app.notice
                         color: Theme.accent
-                        font.pixelSize: 11
+                        font.pixelSize: 12
                         wrapMode: Text.Wrap
                     }
                     QuietButton { text: "Dismiss"; onClicked: app.clearNotice() }
@@ -458,7 +458,7 @@ ApplicationWindow {
                                         anchors.centerIn: parent
                                         text: "MAGNET"
                                         color: Theme.accent
-                                        font.pixelSize: 10
+                                        font.pixelSize: 12
                                         font.weight: Font.DemiBold
                                         font.letterSpacing: 1
                                     }
@@ -474,7 +474,7 @@ ApplicationWindow {
                                     color: Theme.ink
                                     selectByMouse: true
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     background: Rectangle { color: "transparent" }
                                     onAccepted: addButton.clicked()
                                 }
@@ -539,7 +539,7 @@ ApplicationWindow {
                                             anchors.centerIn: parent
                                             text: activeSessions.count
                                             color: Theme.accent
-                                            font.pixelSize: 10
+                                            font.pixelSize: 12
                                             font.weight: Font.DemiBold
                                         }
                                     }
@@ -597,13 +597,13 @@ ApplicationWindow {
                                             Layout.alignment: Qt.AlignHCenter
                                             text: "What shall we watch?"
                                             color: Theme.ink
-                                            font.pixelSize: 14
+                                            font.pixelSize: 15
                                             font.weight: Font.DemiBold
                                         }
                                         Label {
                                             text: "Paste a magnet above or open a .torrent file to start buffering."
                                             color: Theme.secondary
-                                            font.pixelSize: 11
+                                            font.pixelSize: 12
                                         }
                                     }
                                 }
@@ -622,13 +622,13 @@ ApplicationWindow {
                                     Label {
                                         text: libraryEntries.count + (libraryEntries.count === 1 ? " saved stream" : " saved streams")
                                         color: Theme.faint
-                                        font.pixelSize: 10
+                                        font.pixelSize: 12
                                     }
                                     Item { Layout.fillWidth: true }
                                     Label {
                                         text: "Pick up where you left off"
                                         color: Theme.faint
-                                        font.pixelSize: 10
+                                        font.pixelSize: 12
                                     }
                                 }
 
@@ -671,7 +671,7 @@ ApplicationWindow {
                                         anchors.centerIn: parent
                                         text: "Your saved streams will live here. Their links and covers stay until you remove them."
                                         color: Theme.faint
-                                        font.pixelSize: 11
+                                        font.pixelSize: 12
                                     }
                                 }
 
@@ -690,26 +690,26 @@ ApplicationWindow {
                                         Label {
                                             text: "DIAGNOSTICS"
                                             color: Theme.faint
-                                            font.pixelSize: 10
+                                            font.pixelSize: 12
                                             font.weight: Font.DemiBold
                                             font.letterSpacing: 1
                                         }
                                         Label {
                                             text: "Cache " + window.humanSize(app.cacheBytes) + " / " + app.cacheLimitGiB + " GiB"
                                             color: Theme.secondary
-                                            font.pixelSize: 10
+                                            font.pixelSize: 12
                                         }
                                         Label {
                                             text: app.connectionLimit + " peer slots · " + app.uploadLimitKiB + " KiB/s up · " + app.streamAheadMiB + " MiB read-ahead"
                                             color: Theme.secondary
-                                            font.pixelSize: 10
+                                            font.pixelSize: 12
                                         }
                                         Item { Layout.fillWidth: true }
                                         Label {
                                             visible: app.updateMessage.length > 0
                                             text: app.updateMessage
                                             color: Theme.faint
-                                            font.pixelSize: 10
+                                            font.pixelSize: 12
                                             elide: Text.ElideRight
                                             Layout.maximumWidth: 260
                                         }
@@ -733,19 +733,19 @@ ApplicationWindow {
                             Label {
                                 text: "Up next"
                                 color: Theme.ink
-                                font.pixelSize: 14
+                                font.pixelSize: 15
                                 font.weight: Font.DemiBold
                             }
                             Label {
                                 text: "Your next file opens when the current player closes."
                                 color: Theme.faint
-                                font.pixelSize: 10
+                                font.pixelSize: 12
                             }
                             Item { Layout.fillWidth: true }
                             Label {
                                 text: (app.queue ? app.queue.length : 0) + " queued"
                                 color: Theme.faint
-                                font.pixelSize: 10
+                                font.pixelSize: 12
                             }
                         }
 
@@ -788,7 +788,7 @@ ApplicationWindow {
                                                     anchors.centerIn: parent
                                                     text: (queueRow.index + 1).toString().padStart(2, "0")
                                                     color: Theme.accent
-                                                    font.pixelSize: 11
+                                                    font.pixelSize: 12
                                                     font.weight: Font.DemiBold
                                                 }
                                             }
@@ -800,7 +800,7 @@ ApplicationWindow {
                                                     Layout.fillWidth: true
                                                     text: window.displayName(queueRow.modelData)
                                                     color: Theme.ink
-                                                    font.pixelSize: 12
+                                                    font.pixelSize: 14
                                                     font.weight: Font.DemiBold
                                                     elide: Text.ElideMiddle
                                                 }
@@ -809,7 +809,7 @@ ApplicationWindow {
                                                     Layout.fillWidth: true
                                                     text: window.displayFile(queueRow.modelData)
                                                     color: Theme.secondary
-                                                    font.pixelSize: 10
+                                                    font.pixelSize: 12
                                                     elide: Text.ElideMiddle
                                                 }
                                             }
@@ -856,13 +856,13 @@ ApplicationWindow {
                                             Layout.alignment: Qt.AlignHCenter
                                             text: "Nothing queued"
                                             color: Theme.ink
-                                            font.pixelSize: 13
+                                            font.pixelSize: 14
                                             font.weight: Font.DemiBold
                                         }
                                         Label {
                                             text: "Use Queue on an active session to line up its next file."
                                             color: Theme.secondary
-                                            font.pixelSize: 11
+                                            font.pixelSize: 12
                                         }
                                     }
                                 }
@@ -1045,7 +1045,7 @@ ApplicationWindow {
                                 }
                                 SettingRow {
                                     title: "Video previews"
-                                    hint: "Capture a small frame from an active stream for its cover. Turning this off saves the temporary decoder work; saved artwork stays."
+                                    hint: "Use installed VLC to sample a later video frame, even if another player is selected. Blank frames are skipped; slow streams may need Refresh video preview. Turning this off keeps saved artwork."
                                     Switch { checked: app.generatePreviews; onToggled: app.generatePreviews = checked; Accessible.name: "Generate video previews" }
                                 }
                             }
@@ -1162,7 +1162,7 @@ ApplicationWindow {
                       ? "This removes the saved poster and any retained files for this entry. You will need the magnet again to stream it."
                       : "This stops the live session. Cached media can be kept for the library or deleted from disk."
                 color: Theme.secondary
-                font.pixelSize: 11
+                font.pixelSize: 12
                 wrapMode: Text.Wrap
             }
             CheckBox {
@@ -1170,13 +1170,13 @@ ApplicationWindow {
                 visible: !window.pendingRemovalIsLibrary
                 text: "Also delete downloaded data"
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: 12
                 contentItem: Text {
                     leftPadding: deleteData.indicator.width + 8
                     text: deleteData.text
                     color: Theme.secondary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                     verticalAlignment: Text.AlignVCenter
                 }
                 indicator: Rectangle {
@@ -1189,7 +1189,7 @@ ApplicationWindow {
                         visible: deleteData.checked
                         text: "✓"
                         color: Theme.accentInk
-                        font.pixelSize: 11
+                        font.pixelSize: 12
                         font.weight: Font.Bold
                     }
                 }
@@ -1233,7 +1233,7 @@ ApplicationWindow {
             Label {
                 text: "What should BitFly do with this torrent?"
                 color: Theme.ink
-                font.pixelSize: 14
+                font.pixelSize: 15
                 font.weight: Font.DemiBold
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
@@ -1242,7 +1242,7 @@ ApplicationWindow {
                 text: "Keep it available in the library, delete its data, or seed for "
                       + (app.seedMinutes === 0 ? "the configured duration (currently off)" : app.seedMinutes + " minutes") + "."
                 color: Theme.secondary
-                font.pixelSize: 11
+                font.pixelSize: 12
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
             }

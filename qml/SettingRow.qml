@@ -24,7 +24,7 @@ Item {
                 text: root.title
                 color: Theme.ink
                 font.family: Theme.fontFamily
-                font.pixelSize: 13
+                font.pixelSize: 14
                 font.weight: Font.DemiBold
             }
             HelpDot {
@@ -39,7 +39,7 @@ Item {
             text: root.detail
             color: Theme.secondary
             font.family: Theme.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: 12
             wrapMode: Text.Wrap
         }
     }

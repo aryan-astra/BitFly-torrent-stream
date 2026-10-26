@@ -1,0 +1,9 @@
+Test project <workspace>/build
+    Start 8: controller
+1/2 Test #8: controller .......................   Passed    6.70 sec
+    Start 9: previews
+2/2 Test #9: previews .........................   Passed   14.55 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =  21.27 sec

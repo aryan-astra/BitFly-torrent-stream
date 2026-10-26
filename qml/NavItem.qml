@@ -42,7 +42,7 @@ ItemDelegate {
             text: root.label
             color: root.selected ? Theme.ink : Theme.secondary
             font.family: Theme.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: 14
             font.weight: root.selected ? Font.DemiBold : Font.Normal
             anchors.verticalCenter: parent.verticalCenter
         }

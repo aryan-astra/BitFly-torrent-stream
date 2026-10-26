@@ -93,7 +93,11 @@ art just because a title changes. Custom input is limited to 20 MiB, 4096x4096
 and decoded at at most 512px. Output keeps its aspect ratio.
 
 Optional installed-VLC capture uses the existing tokenized HTTP endpoint,
-one owned decoder at a time, at most 16 queued jobs and a 20-second timeout.
+one owned decoder at a time and at most 16 queued jobs. Metadata arrival can
+select a video for preview preparation without launching a player; paused
+sessions and saved selections are respected. Capture samples 30–90 seconds in,
+rejects blank frames, and falls back to the opening if seeking fails. Each
+attempt has a 12-second deadline; one buffered retry runs after 30 seconds.
 Output is dimension/size validated before atomic replacement. URLs/tokens are
 transient; deletion cancels pending captures. Audio/unsupported/failed captures
 keep local generated artwork. `thumbnailKind` is generated/frame/custom.

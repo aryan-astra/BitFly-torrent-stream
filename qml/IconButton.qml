@@ -18,7 +18,7 @@ ToolButton {
         text: root.glyph
         color: root.destructive ? Theme.danger : Theme.secondary
         font.family: Theme.fontFamily
-        font.pixelSize: 13
+        font.pixelSize: 14
         font.weight: Font.DemiBold
     }
     background: Rectangle {
@@ -33,6 +33,6 @@ ToolButton {
         text: root.hint
         delay: 450
         font.family: Theme.fontFamily
-        font.pixelSize: 11
+        font.pixelSize: 12
     }
 }

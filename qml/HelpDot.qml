@@ -19,7 +19,7 @@ ToolButton {
         text: "?"
         color: root.hovered || root.activeFocus ? Theme.accent : Theme.secondary
         font.family: Theme.fontFamily
-        font.pixelSize: 12
+        font.pixelSize: 14
         font.weight: Font.DemiBold
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
@@ -34,7 +34,7 @@ ToolButton {
             text: root.hint
             color: Theme.ink
             font.family: Theme.fontFamily
-            font.pixelSize: 12
+            font.pixelSize: 14
             wrapMode: Text.Wrap
             width: 280
         }

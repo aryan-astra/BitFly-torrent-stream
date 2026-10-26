@@ -221,7 +221,9 @@ class MockApp final : public QObject {
         const QString path = QDir(QDir::tempPath()).filePath("bitfly-qml-smoke-covers/morph.png");
         bitfly::writeCoverArt(path, "Cover transition fixture", "morph", nullptr, 384);
         auto first = m_sessions.first().toMap();
-        first.insert("thumbnail", QUrl::fromLocalFile(path).toString());
+        auto url = QUrl::fromLocalFile(path);
+        url.setQuery("v=123");
+        first.insert("thumbnail", url.toString());
         m_sessions[0] = first;
         emit changed();
     }

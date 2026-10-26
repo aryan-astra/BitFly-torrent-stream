@@ -1,9 +1,11 @@
 #include "PreviewCapture.h"
 #include "ThumbnailArt.h"
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QProcessEnvironment>
+#include <QRandomGenerator>
 
 namespace bitfly {
 PreviewCapture::PreviewCapture(QObject* parent) : QObject(parent) {
@@ -15,14 +17,11 @@ PreviewCapture::PreviewCapture(QObject* parent) : QObject(parent) {
         if (saveFrame())
             finish();
     });
-    connect(&m_timeout, &QTimer::timeout, this, &PreviewCapture::finish);
-    connect(&m_process, &QProcess::finished, this, [this] {
-        saveFrame();
-        finish();
-    });
+    connect(&m_timeout, &QTimer::timeout, this, &PreviewCapture::attemptEnded);
+    connect(&m_process, &QProcess::finished, this, [this] { attemptEnded(); });
     connect(&m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart)
-            finish();
+            attemptEnded();
     });
 }
 PreviewCapture::~PreviewCapture() {
@@ -32,14 +31,16 @@ PreviewCapture::~PreviewCapture() {
         m_process.waitForFinished(500);
     }
 }
-void PreviewCapture::submit(QString id, QUrl url, QString vlc, QString destination) {
+void PreviewCapture::submit(QString id, QUrl url, QString vlc, QString destination,
+                            int startSeconds) {
     if (id.isEmpty() || id == m_current.id || m_jobs.size() >= 16 || url.scheme() != "http" ||
         url.host() != "127.0.0.1" || !QFileInfo(vlc).isFile())
         return;
     for (const auto& job : m_jobs)
         if (job.id == id)
             return;
-    m_jobs.enqueue({std::move(id), std::move(url), std::move(vlc), std::move(destination)});
+    m_jobs.enqueue({std::move(id), std::move(url), std::move(vlc), std::move(destination),
+                    startSeconds < 0 ? QRandomGenerator::global()->bounded(30, 91) : startSeconds});
     next();
 }
 void PreviewCapture::cancel(const QString& id) {
@@ -60,6 +61,10 @@ void PreviewCapture::next() {
         finish();
         return;
     }
+    startCurrent();
+}
+void PreviewCapture::startCurrent() {
+    QFile::remove(m_directory->filePath("frame.png"));
     auto environment = QProcessEnvironment::systemEnvironment();
     for (const auto& key :
          {"QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH", "QML_IMPORT_PATH", "QML2_IMPORT_PATH"})
@@ -73,12 +78,12 @@ void PreviewCapture::next() {
     m_process.start(m_current.vlc,
                     {"--ignore-config", "--no-one-instance", "--intf=dummy", "--no-audio",
                      "--vout=dummy", "--play-and-exit", "--no-loop", "--no-repeat",
-                     "--avcodec-hw=none", "--video-filter=scene", "--scene-format=png",
-                     "--scene-ratio=1", "--scene-replace", "--scene-width=512",
-                     "--scene-path=" + m_directory->path(), "--scene-prefix=frame",
-                     m_current.url.toString(QUrl::FullyEncoded)});
+                     "--avcodec-hw=none", "--start-time=" + QString::number(m_current.startSeconds),
+                     "--video-filter=scene", "--scene-format=png", "--scene-ratio=12",
+                     "--scene-replace", "--scene-width=512", "--scene-path=" + m_directory->path(),
+                     "--scene-prefix=frame", m_current.url.toString(QUrl::FullyEncoded)});
     m_poll.start();
-    m_timeout.start(20000);
+    m_timeout.start(12000);
 }
 bool PreviewCapture::saveFrame() {
     if (m_current.id.isEmpty() || !m_directory)
@@ -90,12 +95,60 @@ bool PreviewCapture::saveFrame() {
     if (!reader.size().isValid() || reader.size().width() > 2048 || reader.size().height() > 2048)
         return false;
     const auto frame = reader.read();
-    if (frame.isNull() || !writeArtworkImage(m_current.destination, frame))
+    if (!usefulFrame(frame) || !writeArtworkImage(m_current.destination, frame))
         return false;
     const QString id = m_current.id;
     m_current.id.clear();
     emit ready(id);
     return true;
+}
+bool PreviewCapture::usefulFrame(const QImage& image) {
+    // shortcut: luma rejects blank frames, not logos; add classification if later sampling is
+    // insufficient.
+    if (image.isNull())
+        return false;
+    const auto sample = image
+                            .copy(image.width() / 10, image.height() / 5, image.width() * 8 / 10,
+                                  image.height() * 3 / 5)
+                            .scaled(64, 36, Qt::IgnoreAspectRatio)
+                            .convertToFormat(QImage::Format_RGB32);
+    double sum = 0, squares = 0;
+    int visible = 0;
+    for (int y = 0; y < sample.height(); ++y) {
+        const auto* row = reinterpret_cast<const QRgb*>(sample.constScanLine(y));
+        for (int x = 0; x < sample.width(); ++x) {
+            const int light = qGray(row[x]);
+            sum += light;
+            squares += light * light;
+            if (light > 22 && light < 240)
+                ++visible;
+        }
+    }
+    const double pixels = sample.width() * sample.height(), mean = sum / pixels;
+    return mean > 12 && mean < 245 && visible > pixels * 0.08 &&
+           squares / pixels - mean * mean > 100;
+}
+void PreviewCapture::attemptEnded() {
+    if (saveFrame()) {
+        finish();
+        return;
+    }
+    m_poll.stop();
+    m_timeout.stop();
+    if (m_process.state() != QProcess::NotRunning) {
+        m_process.kill();
+        return;
+    }
+    if (!m_current.id.isEmpty() && m_current.startSeconds > 0) {
+        m_current.startSeconds = 0;
+        startCurrent();
+        return;
+    }
+    const QString id = m_current.id;
+    m_current.id.clear();
+    if (!id.isEmpty())
+        emit failed(id);
+    finish();
 }
 void PreviewCapture::finish() {
     m_poll.stop();

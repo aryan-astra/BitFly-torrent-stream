@@ -113,6 +113,16 @@ ApplicationController::ApplicationController(QObject* parent, QString directory)
     m_previews = new PreviewCapture(this);
     connect(m_previews, &PreviewCapture::ready, this,
             [this](QString id) { artworkReady(id, "frame"); });
+    connect(m_previews, &PreviewCapture::failed, this, [this](QString id) {
+        if (m_stopping || m_previewRetried.contains(id))
+            return;
+        m_previewRetried.insert(id);
+        QTimer::singleShot(30000, this, [this, id] {
+            if (m_generatePreviews && !session(id).isEmpty() &&
+                historyEntry(id).value("thumbnailKind", "generated") == "generated")
+                refreshPreview(id);
+        });
+    });
 
     m_storageRoots = m_store.get("storageRoots", QStringList{m_cachePath}).toStringList();
     if (!m_storageRoots.contains(m_cachePath))
@@ -154,6 +164,26 @@ ApplicationController::ApplicationController(QObject* parent, QString directory)
                 for (auto& item : m_sessions) {
                     auto row = item.toMap();
                     const auto id = row.value("id").toString();
+                    if (m_generatePreviews && validVlc(m_vlcPath) &&
+                        row.value("selected", -1).toInt() < 0 && !m_requested.contains(id) &&
+                        !row.value("state").toString().contains("pause", Qt::CaseInsensitive) &&
+                        historyEntry(id).value("fileIndex", -1).toInt() < 0 &&
+                        !m_previewSelections.contains(id)) {
+                        const QStringList video = {"mp4", "mkv",  "avi", "webm", "mov", "m4v",
+                                                   "ts",  "m2ts", "wmv", "mpg",  "mpeg"};
+                        for (const auto& value : row.value("files").toList()) {
+                            const auto file = value.toMap();
+                            if (!file.value("playable").toBool() ||
+                                !video.contains(
+                                    QFileInfo(file.value("name").toString()).suffix().toLower()))
+                                continue;
+                            m_previewSelections.insert(id);
+                            const int index = file.value("index").toInt();
+                            QMetaObject::invokeMethod(
+                                m_context, [this, id, index] { m_engine->select(id, index); });
+                            break;
+                        }
+                    }
                     row["active"] = true;
                     const auto saved = historyEntry(id);
                     row["thumbnail"] = saved.value("thumbnail");
@@ -882,6 +912,14 @@ void ApplicationController::setGeneratePreviews(bool value) {
     if (!value)
         for (const auto& row : m_sessions)
             m_previews->cancel(row.toMap().value("id").toString());
+    if (value)
+        for (const auto& value : m_sessions) {
+            const auto row = value.toMap();
+            const auto id = row.value("id").toString();
+            if (row.value("selected", -1).toInt() >= 0 &&
+                historyEntry(id).value("thumbnailKind", "generated") == "generated")
+                refreshPreview(id);
+        }
     persist();
     emit changed();
 }
@@ -922,7 +960,9 @@ void ApplicationController::capturePreview(QString id, QUrl url) {
         m_forgotten.contains(id))
         return;
     const auto entry = historyEntry(id);
-    if (entry.value("thumbnailKind", "generated") != "generated")
+    const QString kind = entry.value("thumbnailKind", "generated").toString();
+    if (kind == "custom" || (kind == "frame" && PreviewCapture::usefulFrame(
+                                                    QImage(ownedThumbnailPath(m_dataRoot, id)))))
         return;
     const auto suffix = QFileInfo(row.value("selectedName").toString()).suffix().toLower();
     const QStringList video = {"mp4", "mkv",  "avi", "webm", "mov", "m4v",
@@ -949,6 +989,10 @@ void ApplicationController::artworkReady(QString id, QString kind) {
     }
 }
 void ApplicationController::refreshPreview(QString id) {
+    if (!m_generatePreviews || !validVlc(m_vlcPath)) {
+        fail("Enable video previews and select an installed VLC in Settings to capture a frame.");
+        return;
+    }
     if (session(id).value("selected", -1).toInt() < 0) {
         fail("Select a video in an active session to capture its preview.");
         return;

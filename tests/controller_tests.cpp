@@ -100,6 +100,34 @@ class ControllerTests final : public QObject {
                      QColor(Qt::red));
         }
     }
+    void preparesPreviewWithoutLaunchingPlayer() {
+        QTemporaryDir directory;
+        const auto vlc = directory.filePath("vlc.exe");
+        QFile player(vlc);
+        QVERIFY(player.open(QIODevice::WriteOnly));
+        player.close();
+        seed(directory.path());
+        {
+            SessionStore store(directory.filePath("sessions.sqlite"));
+            QVERIFY(store.put("vlcPath", vlc));
+        }
+        const auto torrent = directory.filePath("preview.torrent");
+        QFile metadata(torrent);
+        QVERIFY(metadata.open(QIODevice::WriteOnly));
+        metadata.write(
+            "d4:infod6:lengthi255946e4:name11:preview.avi12:piece lengthi262144e6:pieces20:");
+        metadata.write(QByteArray(20, '\0'));
+        metadata.write("ee");
+        metadata.close();
+        ApplicationController controller(nullptr, directory.path());
+        QSignalSpy ready(&controller, &ApplicationController::workerReady);
+        QTRY_VERIFY_WITH_TIMEOUT(!ready.isEmpty(), 10000);
+        controller.openTorrent(QUrl::fromLocalFile(torrent));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.sessions().isEmpty(), 10000);
+        QTRY_COMPARE_WITH_TIMEOUT(controller.sessions().first().toMap().value("selected").toInt(),
+                                  0, 10000);
+        QVERIFY(!controller.sessions().first().toMap().value("vlcRunning").toBool());
+    }
     void playerArgumentsUseDedicatedInstances() {
         QTemporaryDir directory;
         const auto vlc = directory.filePath("vlc.exe");

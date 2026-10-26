@@ -90,7 +90,7 @@ Rectangle {
                         text: root.session.name || "Resolving torrent…"
                         color: Theme.ink
                         font.family: Theme.fontFamily
-                        font.pixelSize: 14
+                        font.pixelSize: 15
                         font.weight: Font.DemiBold
                         wrapMode: Text.Wrap
                         maximumLineCount: 2
@@ -104,7 +104,7 @@ Rectangle {
                                                     + root.humanSize(root.session.total))
                         color: root.session.error ? Theme.danger : Theme.secondary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 11
+                        font.pixelSize: 12
                         elide: Text.ElideRight
                     }
                 }
@@ -120,7 +120,7 @@ Rectangle {
                         text: root.session.state || "Resolving"
                         color: root.statusColor(root.session.state)
                         font.family: Theme.fontFamily
-                        font.pixelSize: 10
+                        font.pixelSize: 12
                         font.weight: Font.DemiBold
                     }
                 }
@@ -149,26 +149,26 @@ Rectangle {
                     text: Math.round(Number(root.session.progress || 0) * 100) + "%"
                     color: Theme.ink
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                     font.weight: Font.DemiBold
                 }
                 Label {
                     text: "·"
                     color: Theme.faint
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                 }
                 Label {
                     text: root.humanRate(Number(root.session.rate || 0))
                     color: Theme.secondary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                 }
                 Item { Layout.fillWidth: true }
                 Label {
                     text: "buffer " + Math.round(Number(root.session.buffer || 0) * 100) + "%"
                     color: Theme.faint
                     font.family: Theme.fontFamily
-                    font.pixelSize: 10
+                    font.pixelSize: 12
                 }
             }
 
@@ -188,14 +188,14 @@ Rectangle {
                 onActivated: index => { if (index >= 0) root.selectedFileIndex = root.mediaFiles[index].index }
                 enabled: root.mediaFiles.length > 0
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: 12
                 delegate: ItemDelegate {
                     id: fileDelegate
                     required property var modelData
                     width: fileChoice.width
                     hoverEnabled: true
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                     contentItem: RowLayout {
                         Label {
                             text: fileDelegate.modelData ? fileDelegate.modelData.name : ""
@@ -203,13 +203,13 @@ Rectangle {
                             Layout.fillWidth: true
                             color: Theme.ink
                             font.family: Theme.fontFamily
-                            font.pixelSize: 11
+                            font.pixelSize: 12
                         }
                         Label {
                             text: root.humanSize(fileDelegate.modelData ? fileDelegate.modelData.size : 0)
                             color: Theme.faint
                             font.family: Theme.fontFamily
-                            font.pixelSize: 10
+                            font.pixelSize: 12
                         }
                     }
                     background: Rectangle {
@@ -231,7 +231,7 @@ Rectangle {
                     y: fileChoice.topPadding + (fileChoice.availableHeight - height) / 2
                     text: "⌄"
                     color: Theme.faint
-                    font.pixelSize: 13
+                    font.pixelSize: 14
                 }
                 background: Rectangle {
                     radius: Theme.radiusSmall

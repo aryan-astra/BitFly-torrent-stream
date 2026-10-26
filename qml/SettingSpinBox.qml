@@ -6,7 +6,7 @@ SpinBox {
     implicitWidth: 164
     implicitHeight: 36
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: 14
 
     contentItem: TextInput {
         text: root.displayText
@@ -33,7 +33,7 @@ SpinBox {
         height: root.height - 2
         radius: Theme.radiusSmall
         color: "transparent"
-        Label { anchors.centerIn: parent; text: "−"; color: Theme.secondary; font.pixelSize: 14 }
+        Label { anchors.centerIn: parent; text: "−"; color: Theme.secondary; font.pixelSize: 15 }
     }
     up.indicator: Rectangle {
         x: root.width - width - 1
@@ -42,6 +42,6 @@ SpinBox {
         height: root.height - 2
         radius: Theme.radiusSmall
         color: "transparent"
-        Label { anchors.centerIn: parent; text: "+"; color: Theme.secondary; font.pixelSize: 13 }
+        Label { anchors.centerIn: parent; text: "+"; color: Theme.secondary; font.pixelSize: 14 }
     }
 }

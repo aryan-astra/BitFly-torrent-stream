@@ -4,6 +4,16 @@ All notable user-visible changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The first stable release is being prepared as 1.0.0.
 
+## 1.0.1 — local thumbnail and readability fix
+
+- Prepare video previews when metadata loads without launching the player.
+- Sample 30–90 seconds into video, reject black/blank frames, fall back after
+  failed seeks and retry once after buffering. Existing custom artwork is kept.
+- Enlarge small text, darken secondary labels, soften panels and give links
+  an opaque surface for contrast over the sky background.
+- Verify the full local-swarm-to-controller-to-VLC-to-saved-PNG path, black
+  intros, later seeks and past-end fallback.
+
 ## 1.0.0 — release candidate (not yet published)
 
 ### Added

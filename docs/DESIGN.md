@@ -105,3 +105,11 @@ minimum 940x640, 150% scale, focused help, cover transitions and a 1000-row shel
 See STATUS.md and validation/v1 for evidence. Native dialogs, a screen-reader session, physical multi-monitor
 DPI behavior, and actual GPU rendering remain separate checks; screenshots from
 the offscreen software harness cannot establish those properties.
+
+## 1.0.1 readability correction
+
+Body controls use 14–15px text; metadata uses at least 12px. Primary and secondary
+text are darker, and panels use a cool off-white rather than pure white. All
+three main text colours exceed 4.5:1 against surface, raised and rail backgrounds.
+Link controls have an opaque panel surface so sky imagery cannot reduce their
+contrast. The original B mark and the user's cloud artwork are retained.

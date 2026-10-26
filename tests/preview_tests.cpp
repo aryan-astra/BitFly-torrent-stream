@@ -1,13 +1,26 @@
+#include "app/ApplicationController.h"
 #include "app/Platform.h"
 #include "app/PreviewCapture.h"
 #include "app/ThumbnailArt.h"
 #include "core/ByteSource.h"
 #include "stream/HttpServer.h"
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <libtorrent/add_torrent_params.hpp>
+#include <libtorrent/bencode.hpp>
+#include <libtorrent/create_torrent.hpp>
+#include <libtorrent/file_storage.hpp>
+#include <libtorrent/magnet_uri.hpp>
+#include <libtorrent/session.hpp>
+#include <libtorrent/settings_pack.hpp>
+#include <libtorrent/torrent_handle.hpp>
+#include <libtorrent/torrent_info.hpp>
+#include <libtorrent/torrent_status.hpp>
 
 using namespace bitfly;
 class PreviewSource final : public ByteSource {
@@ -41,9 +54,9 @@ class PreviewTests final : public QObject {
         QSignalSpy ready(&capture, &PreviewCapture::ready);
         const auto cancelled = directory.filePath("cancelled.png");
         const auto saved = directory.filePath("saved.png");
-        capture.submit("cancelled", server.url("preview/0"), vlc, cancelled);
+        capture.submit("cancelled", server.url("preview/0"), vlc, cancelled, 0);
         capture.cancel("cancelled");
-        capture.submit("saved", server.url("preview/0"), vlc, saved);
+        capture.submit("saved", server.url("preview/0"), vlc, saved, 0);
         QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 1, 25000);
         QCOMPARE(ready.first().first().toString(), "saved");
         QVERIFY(!QFile::exists(cancelled));
@@ -51,6 +64,92 @@ class PreviewTests final : public QObject {
         QVERIFY(!frame.isNull());
         QCOMPARE(frame.width(), 512);
         QVERIFY(frame.pixelColor(20, 20) != frame.pixelColor(300, 150));
+    }
+    void skipsBlackIntroAndSeeksToLaterFrame_data() {
+        QTest::addColumn<int>("seconds");
+        QTest::newRow("reject-opening-black") << 0;
+        QTest::newRow("sample-later-frame") << 5;
+        QTest::newRow("past-end-falls-back") << 90;
+    }
+    void skipsBlackIntroAndSeeksToLaterFrame() {
+        QFETCH(int, seconds);
+        QFile fixture(
+            QFileInfo(QStringLiteral(BITFLY_PREVIEW_FIXTURE)).dir().filePath("preview-intro.avi"));
+        QVERIFY(fixture.open(QIODevice::ReadOnly));
+        PreviewSource source;
+        source.data = fixture.readAll();
+        HttpServer server(&source);
+        QVERIFY(server.start());
+        QTemporaryDir directory;
+        PreviewCapture capture;
+        QSignalSpy ready(&capture, &PreviewCapture::ready);
+        const auto path = directory.filePath("frame.png");
+        capture.submit("intro", server.url("preview/0"), findVlc(), path, seconds);
+        QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 1, 30000);
+        QVERIFY(PreviewCapture::usefulFrame(QImage(path)));
+    }
+    void addedTorrentGetsMovieThumbnailWithoutPressingPlay() {
+        namespace lt = libtorrent;
+        QTemporaryDir source, data;
+        const auto video =
+            QFileInfo(QStringLiteral(BITFLY_PREVIEW_FIXTURE)).dir().filePath("preview-intro.avi");
+        QVERIFY(QFile::copy(video, source.filePath("movie.avi")));
+        lt::file_storage files;
+        files.add_file("movie.avi", QFileInfo(video).size());
+        lt::create_torrent maker(files, 16 * 1024, lt::create_torrent::v1_only);
+        lt::set_piece_hashes(maker, source.path().toStdString());
+        std::vector<char> bytes;
+        lt::bencode(std::back_inserter(bytes), maker.generate());
+        const auto torrent = source.filePath("movie.torrent");
+        QFile metadata(torrent);
+        QVERIFY(metadata.open(QIODevice::WriteOnly));
+        metadata.write(bytes.data(), bytes.size());
+        metadata.close();
+        lt::settings_pack settings;
+        settings.set_str(lt::settings_pack::listen_interfaces, "127.0.0.1:0");
+        settings.set_str(lt::settings_pack::peer_fingerprint, "BFTHUMB-TEST-000001");
+        settings.set_bool(lt::settings_pack::enable_dht, false);
+        settings.set_bool(lt::settings_pack::enable_lsd, false);
+        settings.set_bool(lt::settings_pack::enable_upnp, false);
+        settings.set_bool(lt::settings_pack::enable_natpmp, false);
+        lt::session seeder(settings);
+        QTRY_VERIFY_WITH_TIMEOUT(seeder.listen_port() != 0, 10000);
+        lt::add_torrent_params params;
+        params.ti = std::make_shared<lt::torrent_info>(torrent.toStdString());
+        params.save_path = source.path().toStdString();
+        params.flags |= lt::torrent_flags::seed_mode;
+        params.flags &= ~(lt::torrent_flags::paused | lt::torrent_flags::auto_managed);
+        const auto handle = seeder.add_torrent(params);
+        QTRY_VERIFY_WITH_TIMEOUT(handle.status().is_seeding, 10000);
+        {
+            SessionStore store(data.filePath("sessions.sqlite"));
+            QVERIFY(store.putMany(
+                {{"dhtEnabled", false}, {"localDiscoveryEnabled", false}, {"vlcPath", findVlc()}}));
+        }
+        ApplicationController controller(nullptr, data.path());
+        QSignalSpy worker(&controller, &ApplicationController::workerReady);
+        QTRY_VERIFY_WITH_TIMEOUT(!worker.isEmpty(), 10000);
+        controller.openInput(QString::fromStdString(lt::make_magnet_uri(handle)) +
+                             "&x.pe=127.0.0.1:" + QString::number(seeder.listen_port()));
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.history().isEmpty(), 10000);
+        QTRY_COMPARE_WITH_TIMEOUT(
+            controller.history().first().toMap().value("thumbnailKind").toString(),
+            QString("frame"), 60000);
+        const auto id = controller.history().first().toMap().value("id").toString();
+        QVERIFY(PreviewCapture::usefulFrame(QImage(ownedThumbnailPath(data.path(), id))));
+        QVERIFY(!controller.sessions().first().toMap().value("vlcRunning").toBool());
+    }
+    void rejectsBlankFrames() {
+        QImage frame(512, 288, QImage::Format_RGB32);
+        for (const auto color : {Qt::black, Qt::white, Qt::darkGray}) {
+            frame.fill(color);
+            QVERIFY(!PreviewCapture::usefulFrame(frame));
+        }
+        frame.fill(Qt::black);
+        for (int y = 120; y < 125; ++y)
+            for (int x = 240; x < 245; ++x)
+                frame.setPixelColor(x, y, Qt::white);
+        QVERIFY(!PreviewCapture::usefulFrame(frame));
     }
     void rejectsUntrustedEndpointsAndPreservesArtworkOnFailure() {
         QTemporaryDir directory;

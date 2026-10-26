@@ -1,4 +1,5 @@
 #pragma once
+#include <QImage>
 #include <QObject>
 #include <QProcess>
 #include <QQueue>
@@ -13,19 +14,24 @@ class PreviewCapture final : public QObject {
   public:
     explicit PreviewCapture(QObject* parent = nullptr);
     ~PreviewCapture() override;
-    void submit(QString id, QUrl url, QString vlc, QString destination);
+    void submit(QString id, QUrl url, QString vlc, QString destination, int startSeconds = -1);
     void cancel(const QString& id);
+    static bool usefulFrame(const QImage& image);
   signals:
     void ready(QString id);
+    void failed(QString id);
 
   private:
     struct Job {
         QString id;
         QUrl url;
         QString vlc, destination;
+        int startSeconds = 0;
     };
     void next();
     void finish();
+    void startCurrent();
+    void attemptEnded();
     bool saveFrame();
     QQueue<Job> m_jobs;
     Job m_current;

@@ -55,10 +55,10 @@ Item {
                     Layout.fillWidth: true
                     text: "Connect a Torznab feed from Jackett or Prowlarr. Searches use only the indexers you configure there."
                     color: Theme.secondary
-                    font.pixelSize: 12
+                    font.pixelSize: 14
                     wrapMode: Text.Wrap
                 }
-                Label { text: "Torznab feed URL"; color: Theme.ink; font.pixelSize: 12 }
+                Label { text: "Torznab feed URL"; color: Theme.ink; font.pixelSize: 14 }
                 TextField {
                     id: feed
                     objectName: "searchFeedInput"
@@ -68,7 +68,7 @@ Item {
                     selectByMouse: true
                     Accessible.name: "Torznab feed URL"
                 }
-                Label { text: "API key"; color: Theme.ink; font.pixelSize: 12 }
+                Label { text: "API key"; color: Theme.ink; font.pixelSize: 14 }
                 RowLayout {
                     Layout.fillWidth: true
                     TextField {
@@ -126,7 +126,7 @@ Item {
             Layout.fillWidth: true
             text: root.controller.searchBusy ? "Searching your connected indexers…" : root.controller.searchMessage
             color: Theme.secondary
-            font.pixelSize: 12
+            font.pixelSize: 14
             wrapMode: Text.Wrap
             Accessible.role: Accessible.StaticText
         }
@@ -162,7 +162,7 @@ Item {
                             Layout.fillWidth: true
                             text: result.modelData.title || "Untitled result"
                             color: Theme.ink
-                            font.pixelSize: 13
+                            font.pixelSize: 14
                             font.weight: Font.DemiBold
                             wrapMode: Text.Wrap
                             maximumLineCount: 2
@@ -173,7 +173,7 @@ Item {
                             text: root.humanSize(result.modelData.size) + " · " + (result.modelData.seeders || 0) + " seeders"
                                   + (result.modelData.provider ? " · " + result.modelData.provider : "")
                             color: Theme.secondary
-                            font.pixelSize: 11
+                            font.pixelSize: 12
                             elide: Text.ElideRight
                         }
                     }
@@ -190,7 +190,7 @@ Item {
                 visible: results.count === 0 && !root.controller.searchBusy
                 text: root.controller.searchFeed.length ? "Search your connected indexers above. Results appear here." : "Connect an indexer to start searching inside BitFly."
                 color: Theme.secondary
-                font.pixelSize: 13
+                font.pixelSize: 14
                 wrapMode: Text.Wrap
                 horizontalAlignment: Text.AlignHCenter
             }
