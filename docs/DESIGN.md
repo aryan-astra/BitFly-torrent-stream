@@ -6,8 +6,8 @@ A small personal media shelf, on warm white paper. The interface combines the
 user's portfolio preference for tactile detail with a compact desktop layout.
 The previous graphite/amber dashboard direction was rejected.
 
-`qml/Theme.qml` defines warm white `#fcfbf8`, ivory rail `#f4f2ed`, white cards,
-dark ink `#282a30`, muted ink `#62646b`, and coral actions `#ad4739`. Sky and mint
+`qml/Theme.qml` defines cool white `#eef2f7`, a `#e9edf3` rail, `#f6f7fa` cards,
+dark ink `#1b2028`, secondary ink `#303744`, and coral actions `#ad4739`. Sky and mint
 appear in illustrations. Georgia gives headings a distinctive editorial voice;
 Segoe UI keeps file names, paths, and controls readable without shipping fonts.
 Radii are 8/12/18 px, transitions 140 ms, and the one-time cover unfold 420 ms.
@@ -33,7 +33,10 @@ that they are fully verified or playable offline. Removing downloaded data keeps
 the entry and artwork; removing the entry asks for confirmation.
 
 `MediaCover.qml` starts as a small circular placeholder. Once its image loads,
-it expands into a rounded square or a bounded landscape rectangle. Artwork has
+it expands across the card into a rounded square or landscape rectangle. The
+cover slot and card follow the image height, so neither retains a padded white
+frame. Portrait artwork crops to a square; very wide artwork crops to 1.85:1
+to keep library rows bounded. Artwork has
 bounded decoding, asynchronous loading, and shared image caching. Corner paint
 keeps the effect compatible with Qt's software renderer without allocating a
 second full-image masking texture. The reduced-motion preference replaces these

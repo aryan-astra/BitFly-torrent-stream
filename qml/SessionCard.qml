@@ -69,7 +69,7 @@ Rectangle {
         MediaCover {
             objectName: "cover_" + root.session.id
             Layout.fillWidth: true
-            Layout.preferredHeight: 152
+            Layout.preferredHeight: implicitHeight
             source: String(root.session.thumbnail || "")
         }
 

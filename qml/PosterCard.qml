@@ -17,7 +17,7 @@ Rectangle {
     readonly property bool available: root.item.active === true || root.item.available === true
     readonly property bool hovered: hover.hovered
     implicitWidth: 200
-    implicitHeight: width + 94
+    implicitHeight: body.implicitHeight + 24
     radius: Theme.radiusLarge
     color: Theme.surface
     border.color: root.hovered ? Theme.accent : Theme.line
@@ -26,12 +26,14 @@ Rectangle {
     Behavior on scale { NumberAnimation { duration: Theme.fastMotion; easing.type: Easing.OutCubic } }
 
     ColumnLayout {
+        id: body
         anchors.fill: parent
         anchors.margins: 12
         spacing: 7
         MediaCover {
+            objectName: "cover_" + root.itemId
             Layout.fillWidth: true
-            Layout.preferredHeight: root.width - 30
+            Layout.preferredHeight: implicitHeight
             source: String(root.item.thumbnail || "")
             dimmed: !root.available
         }

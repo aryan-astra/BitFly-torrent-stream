@@ -10,21 +10,21 @@ Item {
     readonly property real currentCoverWidth: frame.width
     readonly property real imageRatio: artwork.implicitHeight > 0
         ? artwork.implicitWidth / artwork.implicitHeight : 1
-    readonly property real aspect: ready ? Math.max(0.65, Math.min(1.65, imageRatio)) : 1
+    readonly property real aspect: ready ? Math.max(1, Math.min(1.85, imageRatio)) : 1
     implicitWidth: 180
-    implicitHeight: 140
+    implicitHeight: ready ? width / aspect : 72
+    Behavior on implicitHeight { NumberAnimation { duration: Theme.coverMotion; easing.type: Easing.OutCubic } }
 
     Rectangle {
         id: frame
         anchors.centerIn: parent
-        width: root.ready ? Math.min(root.width, root.height * root.aspect) : Math.min(72, root.width)
-        height: root.ready ? Math.min(root.height, root.width / root.aspect) : Math.min(72, root.height)
+        width: root.ready ? root.width : Math.min(72, root.width)
+        height: root.ready ? root.height : Math.min(72, root.height)
         radius: root.ready ? Theme.radius : width / 2
         color: Theme.sky
         clip: true
         opacity: root.dimmed ? 0.48 : 1
         Behavior on width { NumberAnimation { duration: Theme.coverMotion; easing.type: Easing.OutCubic } }
-        Behavior on height { NumberAnimation { duration: Theme.coverMotion; easing.type: Easing.OutCubic } }
         Behavior on radius { NumberAnimation { duration: Theme.coverMotion; easing.type: Easing.OutCubic } }
         Image {
             anchors.centerIn: parent

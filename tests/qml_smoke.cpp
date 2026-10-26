@@ -80,7 +80,7 @@ class MockApp final : public QObject {
         }
         if (scenario == "empty")
             return;
-        if (scenario == "shelf" || scenario == "large-library") {
+        if (scenario == "shelf" || scenario == "large-library" || scenario == "cover-shapes") {
             const QString titles[] = {"The Quiet Orbit", "Deep Field",          "Aperture",
                                       "Night Signals",   "Long Way Around",     "Paper Planets",
                                       "Static Bloom",    "The Last Projection", "Meridian",
@@ -91,8 +91,11 @@ class MockApp final : public QObject {
                 const QString title = titles[i % 12];
                 const QString id = QString("shelf-%1").arg(i + 1);
                 const QString path = QDir(dir).filePath(QString("shelf-art-%1.png").arg(i % 12));
-                if (i < 12)
+                if (i < 12) {
                     bitfly::writeCoverArt(path, title, QString::number(i), nullptr, 384);
+                    if (scenario == "cover-shapes" && i % 3 == 0)
+                        QImage(path).scaled(384, 216, Qt::IgnoreAspectRatio).save(path);
+                }
                 m_library.append(QVariantMap{{"id", id},
                                              {"name", title},
                                              {"fileName", i % 2 ? "Episode 01.mkv" : "Feature.mp4"},
@@ -216,11 +219,15 @@ class MockApp final : public QObject {
     Q_INVOKABLE void setCloudflareMode(const QString&) {}
     Q_INVOKABLE void openCloudflareDownload() {}
     Q_INVOKABLE void openCloudflareClient() {}
-    Q_INVOKABLE void loadFirstThumbnail() {
+    Q_INVOKABLE void loadFirstThumbnail(bool landscape = false) {
         if (m_sessions.isEmpty())
             return;
-        const QString path = QDir(QDir::tempPath()).filePath("bitfly-qml-smoke-covers/morph.png");
+        const QString path = QDir(QDir::tempPath())
+                                 .filePath(landscape ? "bitfly-qml-smoke-covers/landscape.png"
+                                                     : "bitfly-qml-smoke-covers/morph.png");
         bitfly::writeCoverArt(path, "Cover transition fixture", "morph", nullptr, 384);
+        if (landscape)
+            QImage(path).scaled(384, 216, Qt::IgnoreAspectRatio).save(path);
         auto first = m_sessions.first().toMap();
         auto url = QUrl::fromLocalFile(path);
         url.setQuery("v=123");
@@ -398,14 +405,34 @@ int main(int argc, char** argv) {
         if (!cover || cover->property("ready").toBool() ||
             cover->property("currentCoverWidth").toDouble() > 73)
             return 15;
-        controller.setProperty("reducedMotion", true);
         controller.loadFirstThumbnail();
         if (!QTest::qWaitFor([cover] { return cover->property("ready").toBool(); }, 3000))
             return 16;
-        QTest::qWait(30);
+        if (!QTest::qWaitFor(
+                [cover] {
+                    const auto width = cover->property("currentCoverWidth").toDouble();
+                    return width > 73 && width < cover->property("width").toDouble() - 1;
+                },
+                300))
+            return 30;
+        QTest::qWait(500);
         if (cover->property("currentCornerRadius").toDouble() > 13 ||
             cover->property("currentCoverWidth").toDouble() <= 73)
             return 17;
+        if (qAbs(cover->property("currentCoverWidth").toDouble() -
+                 cover->property("width").toDouble()) > 1)
+            return 27;
+        controller.setProperty("reducedMotion", true);
+        controller.loadFirstThumbnail(true);
+        if (!QTest::qWaitFor([cover] { return cover->property("imageRatio").toDouble() > 1.7; },
+                             3000))
+            return 28;
+        QTest::qWait(30);
+        if (qAbs(cover->property("currentCoverWidth").toDouble() -
+                 cover->property("width").toDouble()) > 1 ||
+            qAbs(cover->property("height").toDouble() -
+                 cover->property("width").toDouble() / (384.0 / 216)) > 1)
+            return 29;
         controller.setProperty("reducedMotion", false);
         QObject* shelf = window->findChild<QObject*>("libraryRepeater");
         if (!shelf || shelf->property("count").toInt() != 2) {
