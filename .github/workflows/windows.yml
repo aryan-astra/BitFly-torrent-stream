@@ -25,7 +25,6 @@ jobs:
             qt_host: windows
             qt_arch: win64_msvc2022_64
             qt_kit: msvc2022_64
-            cmake_generator: Visual Studio 17 2022
             cmake_arch: x64
             vcpkg_triplet: x64-windows
           - arch: arm64
@@ -33,17 +32,28 @@ jobs:
             qt_host: windows_arm64
             qt_arch: win64_msvc2022_arm64
             qt_kit: msvc2022_arm64
-            cmake_generator: Visual Studio 18 2026
             cmake_arch: ARM64
             vcpkg_triplet: arm64-windows
     runs-on: ${{ matrix.runner }}
     env:
       VCPKG_DISABLE_METRICS: 1
+      QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES: 1
     steps:
       - name: Checkout BitFly
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+
+      - name: Verify release version
+        shell: pwsh
+        run: |
+          $cmake = Get-Content CMakeLists.txt -Raw
+          if ($cmake -notmatch 'project\(BitFly VERSION ([0-9]+\.[0-9]+\.[0-9]+)') { throw 'Missing application version.' }
+          $version = $Matches[1]
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -notmatch "^v$([regex]::Escape($version))(-[0-9A-Za-z.-]+)?$") {
+            throw "Release tag $env:GITHUB_REF_NAME does not match application version $version."
+          }
+          "BITFLY_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Checkout pinned vcpkg baseline
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -123,7 +133,7 @@ jobs:
             throw "Inno Setup installer signature was not valid for the expected publisher: $($signature.Status) $($signature.SignerCertificate.Subject)"
           }
           $installDir = Join-Path $env:GITHUB_WORKSPACE '.tools/InnoSetup'
-          $install = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', "/DIR=$installDir") -Wait -PassThru
+          $install = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', "/DIR=$installDir") -WindowStyle Hidden -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Inno Setup installer failed with exit code $($install.ExitCode)" }
           $compiler = Join-Path $installDir 'ISCC.exe'
           if (!(Test-Path -LiteralPath $compiler -PathType Leaf)) { throw 'Signed Inno Setup installation did not provide ISCC.exe.' }
@@ -134,13 +144,14 @@ jobs:
         run: |
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
           if (!(Test-Path -LiteralPath $vswhere -PathType Leaf)) { throw "vswhere.exe not found: $vswhere" }
-          $vsRange = if ('${{ matrix.arch }}' -eq 'x64') { '[17.0,18.0)' } else { '[18.0,19.0)' }
-          $vsResult = & $vswhere -latest -products '*' -version $vsRange -property installationPath
+          $vsResult = & $vswhere -latest -products '*' -version '[17.0,19.0)' -format json
           if ($LASTEXITCODE -ne 0) { throw "vswhere failed with exit code $LASTEXITCODE." }
-          $vsInstall = if ($vsResult) { ([string]($vsResult | Select-Object -First 1)).Trim() } else { '' }
+          $instances = @($vsResult | ConvertFrom-Json)
+          $vsInstall = if ($instances.Count) { $instances[0].installationPath } else { '' }
           if ([string]::IsNullOrWhiteSpace($vsInstall) -or !(Test-Path -LiteralPath $vsInstall -PathType Container)) {
-            throw "Could not locate the expected Visual Studio instance for ${{ matrix.arch }} ($vsRange)."
+            throw 'Could not locate a supported Visual Studio 2022/2026 instance.'
           }
+          $cmakeGenerator = if (([version]$instances[0].installationVersion).Major -eq 18) { 'Visual Studio 18 2026' } else { 'Visual Studio 17 2022' }
           $vcInstall = Join-Path $vsInstall 'VC'
           if (!(Test-Path -LiteralPath (Join-Path $vcInstall 'Tools/MSVC') -PathType Container)) {
             throw "MSVC toolsets were not found under $vcInstall."
@@ -166,7 +177,7 @@ jobs:
           $triplet = '${{ matrix.vcpkg_triplet }}'
           $toolchain = Join-Path $env:GITHUB_WORKSPACE '.tools/vcpkg/scripts/buildsystems/vcpkg.cmake'
           $overlayTriplets = Join-Path $env:GITHUB_WORKSPACE 'scripts/vcpkg-triplets'
-          cmake -S . -B $build -G '${{ matrix.cmake_generator }}' -A '${{ matrix.cmake_arch }}' -T v143 `
+          cmake -S . -B $build -G $cmakeGenerator -A '${{ matrix.cmake_arch }}' -T v143 `
             -DCMAKE_PREFIX_PATH="$env:QT_ROOT" `
             -DCMAKE_TOOLCHAIN_FILE="$toolchain" `
             -DVCPKG_TARGET_TRIPLET="$triplet" `
@@ -186,32 +197,51 @@ jobs:
             -OutputDir $dist -RequireInstaller
           if ($LASTEXITCODE -ne 0) { throw 'Packaging failed.' }
 
-      - name: Smoke-test staged application
+      - name: Verify and smoke-test portable package
         shell: pwsh
         run: |
-          $exe = Join-Path $env:GITHUB_WORKSPACE 'build/release/stage/BitFly.exe'
-          if (!(Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Staged executable not found: $exe" }
-          $probe = Join-Path $env:RUNNER_TEMP 'bitfly-startup-probe.json'
+          $dist = Join-Path $env:GITHUB_WORKSPACE 'dist'
+          $base = "BitFly-$env:BITFLY_VERSION-windows-${{ matrix.arch }}"
+          $manifest = @(Get-Content -LiteralPath (Join-Path $dist "$base-SHA256SUMS.txt"))
+          if ($manifest.Count -ne 2) { throw 'Expected installer and ZIP checksums.' }
+          foreach ($name in @("$base.zip", "$base-setup.exe")) {
+            $expected = @($manifest | Where-Object { $_ -match "^[A-Fa-f0-9]{64}  $([regex]::Escape($name))$" })
+            if ($expected.Count -ne 1) { throw "Missing or duplicate checksum for $name." }
+            if ((Get-FileHash -LiteralPath (Join-Path $dist $name) -Algorithm SHA256).Hash -ne $expected[0].Substring(0, 64)) { throw "Checksum mismatch for $name." }
+          }
+          $portable = Join-Path $env:RUNNER_TEMP 'bitfly-portable'
+          Expand-Archive -LiteralPath (Join-Path $dist "$base.zip") -DestinationPath $portable
+          $exe = Join-Path $portable 'BitFly.exe'
+          if (!(Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Portable executable not found: $exe" }
+          $data = Join-Path $env:RUNNER_TEMP 'bitfly-smoke-data'
+          New-Item -ItemType Directory -Path $data | Out-Null
+          $env:PATH = "$portable;$env:WINDIR/System32;$env:WINDIR"
+          $env:QT_PLUGIN_PATH = $portable
+          $env:QT_QPA_PLATFORM_PLUGIN_PATH = Join-Path $portable 'platforms'
+          $env:QT_QPA_PLATFORM = 'windows'
+          Remove-Item Env:QML_IMPORT_PATH, Env:QML2_IMPORT_PATH -ErrorAction SilentlyContinue
           $stdout = Join-Path $env:RUNNER_TEMP 'bitfly-smoke-stdout.txt'
           $stderr = Join-Path $env:RUNNER_TEMP 'bitfly-smoke-stderr.txt'
-          $process = Start-Process -FilePath $exe -ArgumentList @('--startup-probe', $probe, '--quit-after', '5000') -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $process = Start-Process -FilePath $exe -ArgumentList @('--diagnostic-data-dir', $data, '--quit-after', '1500') -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           if (!$process.WaitForExit(30000)) {
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            throw 'Staged application did not exit within 30 seconds.'
+            throw 'Portable native application did not exit within 30 seconds.'
           }
-          $stdoutText = Get-Content -LiteralPath $stdout -Raw -ErrorAction SilentlyContinue
-          $stderrText = Get-Content -LiteralPath $stderr -Raw -ErrorAction SilentlyContinue
-          if ($process.ExitCode -ne 0) {
-            throw "Staged application exited with code $($process.ExitCode).`nSTDOUT:`n$stdoutText`nSTDERR:`n$stderrText"
+          if ($process.ExitCode -ne 0) { throw "Portable native boot failed: $(Get-Content -LiteralPath $stderr -Raw)" }
+          # A hosted runner may have no exposed desktop; render separately with the matching SDK validation plugin.
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $env:QT_QPA_PLATFORM_PLUGIN_PATH = Join-Path $env:QT_ROOT 'plugins/platforms'
+          $env:QT_QPA_FONTDIR = Join-Path $env:WINDIR 'Fonts'
+          $screenshot = Join-Path $env:RUNNER_TEMP 'bitfly-portable.png'
+          $process = Start-Process -FilePath $exe -ArgumentList @('--diagnostic-data-dir', $data, '--screenshot', $screenshot) -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          if (!$process.WaitForExit(30000)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw 'Portable offscreen render did not exit within 30 seconds.'
           }
-          if (!(Test-Path -LiteralPath $probe -PathType Leaf)) {
-            throw "Staged application did not render a first frame.`nSTDOUT:`n$stdoutText`nSTDERR:`n$stderrText"
+          if ($process.ExitCode -ne 0 -or !(Test-Path -LiteralPath $screenshot -PathType Leaf) -or (Get-Item -LiteralPath $screenshot).Length -lt 1024) {
+            throw "Portable render failed: $(Get-Content -LiteralPath $stderr -Raw)"
           }
-          $evidence = Get-Content -LiteralPath $probe -Raw | ConvertFrom-Json
-          if ($null -eq $evidence.firstFrameMs -or [int]$evidence.firstFrameMs -lt 0) {
-            throw "Invalid startup probe evidence: $(Get-Content -LiteralPath $probe -Raw)"
-          }
-          "Staged application rendered its first frame in $($evidence.firstFrameMs) ms and exited cleanly."
+          'Verified both checksums; extracted portable native boot and offscreen render passed using packaged DLLs.'
 
       - name: Upload architecture artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -245,7 +275,21 @@ jobs:
           gh run download $env:GITHUB_RUN_ID --repo $env:GITHUB_REPOSITORY --name BitFly-arm64 --dir release/arm64
           if ($LASTEXITCODE -ne 0) { throw 'Could not download ARM64 artifacts.' }
           $assets = @(Get-ChildItem release -Recurse -File)
-          if ($assets.Count -lt 6) { throw 'Both architectures must provide a ZIP, installer, and SHA-256 file.' }
+          if ($assets.Count -ne 6) { throw 'Both architectures must provide exactly a ZIP, installer, and SHA-256 file.' }
+          $cmake = Get-Content CMakeLists.txt -Raw
+          if ($cmake -notmatch 'project\(BitFly VERSION ([0-9]+\.[0-9]+\.[0-9]+)') { throw 'Missing application version.' }
+          $version = $Matches[1]
+          foreach ($arch in @('x64', 'arm64')) {
+            $base = "BitFly-$version-windows-$arch"
+            $directory = Join-Path release $arch
+            $manifest = @(Get-Content -LiteralPath (Join-Path $directory "$base-SHA256SUMS.txt"))
+            if ($manifest.Count -ne 2) { throw "Expected installer and ZIP checksums for $arch." }
+            foreach ($name in @("$base.zip", "$base-setup.exe")) {
+              $expected = @($manifest | Where-Object { $_ -match "^[A-Fa-f0-9]{64}  $([regex]::Escape($name))$" })
+              if ($expected.Count -ne 1) { throw "Missing or duplicate checksum for $name." }
+              if ((Get-FileHash -LiteralPath (Join-Path $directory $name) -Algorithm SHA256).Hash -ne $expected[0].Substring(0, 64)) { throw "Checksum mismatch for $name." }
+            }
+          }
 
       - name: Publish GitHub Release
         shell: pwsh
