@@ -1,0 +1,29 @@
+# Artwork exploration and final direction
+
+Generated with the built-in image generation tool on 2026-10-26.
+These comparison sheets are excluded from runtime packaging. The user rejected
+the proposed replacement logos and retained the original flat B monogram.
+Only interface navigation icons remain 3D. The chosen background combines
+soft cloudscape and paper clouds, with a subsequent request for stronger
+blue midtones and visible cloud contours. Runtime asset: qml/assets/sky-clouds.png.
+
+Logo: A folded butterfly, B flight arrow, C cloud play, D ribbon loops.
+Background: A morning sky, B cloudscape, C paper clouds, D peach horizon.
+
+The flat-logo follow-up sheet was also rejected. Original B branding is final.
+
+## Cloud blend prompt
+
+Generate a final desktop-app background illustration for BitFly. Wide landscape canvas, premium light SKY aesthetic, combining soft pearlescent volumetric white cloudscape with tactile handcrafted ivory paper-cloud layers. Background is luminous near-white and very pale ice blue; clouds are soft naturally lit rounded volumes, but some nearer cloud contours have delicate cut-paper edges and subtle layered paper texture. Concentrate this blended cloudscape along the lower edge and far right/left edges, leaving at least the upper two thirds and central working region almost-white, low contrast, and quiet so app controls remain readable. Art directed and refined, not childish, no cardboard diorama or obvious craft table, no saturated blue. The cloud forms should feel airy, light and premium, with gentle daylight/contact shadows and a faint warm tint in the whites. No sky objects, aircraft, birds, ribbons, spheres, horizons with scenery, text, icons, logos, UI, watermarks, stars or dramatic sunset. The background should visually combine a soft real cloud atmosphere with subtle sculpted paper material, rather than splitting them into two different halves. Landscape aspect ratio.
+
+## Requested contrast edit
+
+Edit this BitFly sky-and-paper-cloud background. Preserve the same composition, shapes, layered paper cloud material, soft premium daylight and overall light theme. Increase the blue-grey midtone contrast substantially so the cloud contours and paper layer edges are clearly visible at normal monitor brightness. Give the sky a more noticeable muted powder/cerulean blue, especially toward the upper corners, and give the clouds soft blue-grey shadows with distinct ivory highlights. The user says the current image looks almost all white and clouds are not visible; correct that visibly, not a tiny change. Keep a calm low-detail central area for app content, but it can be pale blue rather than white. No dark/night theme, no saturation-heavy blue, no new objects, no text, no logo, no extra decoration. Keep the landscape framing and tasteful airy feeling.
+
+## Logo prompt
+
+Create ONE polished design comparison sheet containing FOUR original logo options for BitFly, a premium playful Windows torrent-streaming application. Arrange as a clean 2 by 2 collage, each cell identical size, generous warm-white negative space, a small clear label A, B, C, D in its upper-left corner. No other text. Each option must be visibly different in silhouette, refined and readable at small desktop icon size, softly sculpted 3D with subtle tactile materials and controlled contact shadows, charming and premium, no stock clipart, no generic AI sci-fi, no borrowed brand marks. A: an elegant folded-paper butterfly, ivory outer folds with coral and pale blue inner faces, simple four-wing silhouette. B: a compact sky-blue folded flight arrow or paper plane with one flowing ivory fold, bold directional silhouette. C: a smooth pearly cloud enclosing a small coral play triangle, extremely simple and iconic. D: two interlocking rounded mint and blue ribbon loops forming a subtle butterfly or lowercase b-like flight symbol, no literal lettering. Keep all four icons equally prominent, centered on clean light tiles with barely visible separators, compatible with a white sophisticated app. Show only the four finished icons, not full app screens, no textures or decorations around them. Square overall comparison sheet.
+
+## Background prompt
+
+Create ONE art-directed background comparison sheet containing FOUR premium SKY-inspired desktop app background options in a 2 by 2 collage. Each cell is a WIDE landscape thumbnail, with a small readable dark label A, B, C, D in its top-left corner, placed in a small white margin outside the artwork. No other text. This is for BitFly: sophisticated playful white software, tasteful and light, naturally beautiful and authored, no generic AI fantasy or stock corporate wallpaper. All four concepts must differ meaningfully, remain understated, with large light low-detail zones so app controls can sit above them. A: clear early-morning pale cerulean sky gently fading into near-white, a tiny delicate natural cloud at the far bottom-right, quiet daylight, crisp premium simplicity. B: pearlescent softly sculpted volumetric white clouds against a very pale ice-blue sky, realistic soft illumination, clouds concentrated along the lower edge, refined depth with almost empty upper space. C: editorial hand-crafted ivory paper clouds floating at the far edges over a powder-blue and cream-white sky, subtle tangible paper shadows, sophisticated playful physical collage, central space blank. D: a luminous high-altitude sky with a thin soft peach sunrise band near the bottom and one faint sweeping translucent atmospheric arc, almost-white and soft blue, restrained cinematic calm, no sun disk, no stars. No mountains, buildings, birds, planes, logos, floating spheres, sci-fi, loud gradients, saturated blue, dramatic sunsets or unnecessary clutter. Each thumbnail must look like an actual finished subtle wallpaper, not a UI screenshot. Overall comparison sheet landscape format.

@@ -2,10 +2,28 @@
 
 All notable user-visible changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). This project is in a
-development-preview phase; pre-1.0 releases may change behavior.
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). The first stable release is being prepared as 1.0.0.
 
-## Unreleased
+## 1.0.0 — release candidate (not yet published)
+
+### Added
+
+- White tactile interface, original B-monogram icon, illustrated sidebar, compact
+  explained settings, reduced motion and animated media covers.
+- Persistent relaunchable media library, retained artwork, custom images and
+  optional previews through installed VLC.
+- Preferred external VLC/mpv/MPC player and optional Torznab search integration.
+- Installed Cloudflare client controls without bundling or startup reconfiguration.
+- Stable update checks on each launch, background size/hash-verified downloads
+  and explicit installer action.
+
+### Changed
+
+- New downloads can use another selected folder while existing sessions retain
+  their storage paths across restarts.
+- Bounded stream scheduling and verified reads avoid speculative cache churn.
+- Post-play seeding defaults to 0 and requires an explicit choice.
+
 
 ### Fixed
 

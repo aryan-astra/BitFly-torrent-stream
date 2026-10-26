@@ -8,6 +8,7 @@ Button {
     rightPadding: 0
     topPadding: 0
     bottomPadding: 0
+    hoverEnabled: true
     font.family: Theme.fontFamily
     font.pixelSize: 11
     Accessible.role: Accessible.Link

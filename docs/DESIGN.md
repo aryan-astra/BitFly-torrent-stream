@@ -1,29 +1,107 @@
 # BitFly interface design
 
-BitFly is a compact Windows desktop utility for choosing torrent media and handing playback to VLC. The interface keeps the next action close to the stream and gives transfer state enough detail to explain why playback may be waiting.
+## Direction
 
-## Visual language
+A small personal media shelf, on warm white paper. The interface combines the
+user's portfolio preference for tactile detail with a compact desktop layout.
+The previous graphite/amber dashboard direction was rejected.
 
-The palette uses warm near-white surfaces, dark graphite navigation, quiet green as the playback action, and text labels alongside state colors. Segoe UI follows the Windows desktop, thin separators and small radii keep the interface restrained, and controls retain native Qt Quick focus and keyboard behavior. The navigation marks are drawn vector paths, and reusable colors, typography, and radius values live in `qml/Theme.qml`.
+`qml/Theme.qml` defines warm white `#fcfbf8`, ivory rail `#f4f2ed`, white cards,
+dark ink `#282a30`, muted ink `#62646b`, and coral actions `#ad4739`. Sky and mint
+appear in illustrations. Georgia gives headings a distinctive editorial voice;
+Segoe UI keeps file names, paths, and controls readable without shipping fonts.
+Radii are 8/12/18 px, transitions 140 ms, and the one-time cover unfold 420 ms.
+There is no perpetual decorative animation or browser runtime.
 
-## Screen structure
+## Navigation and layout
 
-- **Stream** accepts a magnet link or torrent file, then shows each real session with its state, progress, transfer rate, peers, buffer, and playable file selection. Play, queue, pause, and removal actions stay with that session.
-- **Queue** shows the ordered play list and exposes move, remove, and play controls.
-- **History** lets a user relaunch a prior stream.
-- **Settings** controls the VLC executable, cache location and quota, seed duration, and update check.
-- **Diagnostics** expands in the Stream view and reports actual cache usage and update text from the controller.
+The 190 px sidebar contains Library, Queue, Search, and Settings, plus current
+storage usage and external-player readiness. The default window is 1240 × 800;
+940 × 640 is the minimum. Content scrolls inside the window and long paths wrap
+or elide instead of pushing controls outside their rows.
 
-When playback ends, the user chooses Keep, Delete data, or Seed. The controller owns those session outcomes and the configured seed timer.
+The library starts with the magnet input and an Open .torrent action. Active
+sessions expose name, state, transfer and buffer information, file selection,
+Play, pause/resume, and an artwork/files menu. Playback is always external.
+Opening a torrent does not itself open the media player.
 
-## Layout and accessibility
+Saved entries appear below active sessions in a virtualized GridView. Titles
+and actions sit below the artwork, so the image is not obscured by gradients or
+duplicated overlaid text. Retained files are bright; entries without local data
+are dimmed and say that downloading is needed. Existence of files is not a claim
+that they are fully verified or playable offline. Removing downloaded data keeps
+the entry and artwork; removing the entry asks for confirmation.
 
-The window starts at 1080 × 720 and supports a compact 780 × 540 minimum. The left navigation remains fixed while the active page scrolls. Torrent names and file paths elide within their layout cells; session lists scroll instead of growing the window. Controls use Qt Quick Controls and remain keyboard focusable, visible labels explain icon-only navigation and queue actions, and focus changes are emphasized on the input field. Error states include text, and transfer state is shown by both a label and color.
+`MediaCover.qml` starts as a small circular placeholder. Once its image loads,
+it expands into a rounded square or a bounded landscape rectangle. Artwork has
+bounded decoding, asynchronous loading, and shared image caching. Corner paint
+keeps the effect compatible with Qt's software renderer without allocating a
+second full-image masking texture. The reduced-motion preference replaces these
+transitions and hover movement with immediate state changes.
 
-The UI reads controller snapshots and invokes the app's public API; it does not invent session, queue, history, or diagnostic data. Playback progress is the controller's stream-buffer metric, not a VLC playback-position estimate.
+Queue rows allow reordering, removal, and playback. Search uses a configured
+Torznab feed from Jackett/Prowlarr; it never claims to search every torrent site.
+The connection form has visible labels and an empty password field: saved API
+keys are never sent back to the interface. Search has initial setup, busy/cancel,
+results, no-results/status, and recoverable-message states. Results are virtualized.
 
-## Validation limits
+## Settings
 
-The QML source targets Qt 6.8.3 Quick, Controls, Layouts, and Dialogs. `qmllint` parses the QML without warnings. An offscreen Qt 6.8.3 harness loaded `Main.qml` with a contract-shaped mock controller and rendered empty, populated, queue, history, and settings states at 900 × 600; the Stream view was also rendered at 125%, 150%, and 200% scale, and the 780 × 540 minimum was checked. The Windows offscreen plugin needed `QT_QPA_FONTDIR` set to the system fonts directory to render Segoe UI.
+Compact groups cover Storage, Streaming, Network, Discovery, Playback,
+Look & feel, Cloudflare connection, and Updates. Every setting has a focusable
+question mark whose hover/focus tooltip explains the effect and limits.
 
-The packaged x64 application has since launched with PATH restricted to its stage and Windows directories, rendered a real 1350 × 900 first frame, and exited cleanly; the screenshot in this repository comes from that application, not the mock harness. Hidden-window capture produced a DPI artifact and is not used as UI evidence. Native file dialogs, keyboard focus traversal, screen-reader semantics, and hardware DPI behavior across multiple monitors still need a focused packaged-app review. These limits do not invalidate the render and launch evidence recorded in [STATUS.md](STATUS.md).
+- Folder changes apply to new sessions; active sessions keep their own roots.
+- Read-ahead prioritizes data requests. It is not a rolling disk-space limit.
+- Download/upload caps explicitly explain that zero means unlimited.
+- DHT, local discovery, and optional port mapping are real engine controls.
+- A supported external player can be selected; VLC remains the default.
+- Video previews and reduced motion are optional.
+- Cloudflare is a separately installed client with system-wide effects. The UI
+  offers status, opening/downloading the official client, and explicit controls.
+  DNS-only mode does not tunnel torrent traffic.
+- Stable-update checks run at each app launch and download newer installers in
+  the background. Download progress and installation have separate states.
+  No install action is shown until the controller reports a verified installer.
+
+## Accessibility and motion
+
+Qt Quick Controls provide focus and keyboard semantics. Icon buttons have names
+and tooltips; help works through keyboard focus as well as hover. Focus has a
+visible coral outline. Transfer and availability states always have text.
+Animations respond to actions, settle quickly, and use `Theme.reducedMotion`.
+Sidebar icons gently tilt/lift on hover and compress on press; buttons compress
+on press. The illustrations are decorative and ignored by assistive technology.
+
+## Generated artwork
+
+The built-in image-generation tool produced four transparent navigation assets:
+`qml/assets/nav-library.png`, `nav-queue.png`, `nav-search.png`, and
+`nav-settings.png`. Each is decoded at 64 px for its 32 px display size.
+The user retained the original flat B monogram (`bitfly-mark.png`) and chose
+a darker blend of soft cloudscape and paper-cloud art (`sky-clouds.png`).
+The background
+is decoded at a bounded 1280 px and the small mark at 84 px.
+
+Shared final icon prompt: a single desktop sidebar navigation icon for BitFly;
+premium simple tactile 3D illustration, subtly paper-ceramic material, soft
+top-left studio lighting, restrained contact shading, ivory/coral/sky/mint,
+front three-quarter view, clear chunky silhouette readable at 32 pixels,
+centered single object occupying 80% of a square, fully transparent background,
+no tile, text, letters, logo, or watermark. Subjects were respectively three
+stacked media sleeves with an inset play triangle; a raised three-line playlist;
+a magnifying glass with sky lens/coral handle; and a six-tooth ivory gear.
+
+## Validation record
+
+The `qml_smoke` harness uses clearly synthetic fixtures, loads the real QML, and
+fails on runtime QML warnings. It checks navigation, stable session identity
+across snapshot refreshes, file selection, saved-library counts, the cover
+transition with reduced motion, and search query forwarding without secret
+prefill. Image fixtures do not claim to represent live torrent downloads.
+
+The final QML regression checks and offscreen visual review passed, including
+minimum 940x640, 150% scale, focused help, cover transitions and a 1000-row shelf.
+See STATUS.md and validation/v1 for evidence. Native dialogs, a screen-reader session, physical multi-monitor
+DPI behavior, and actual GPU rendering remain separate checks; screenshots from
+the offscreen software harness cannot establish those properties.

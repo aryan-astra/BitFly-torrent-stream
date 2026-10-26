@@ -9,18 +9,28 @@ import QtQuick.Window
 
 ApplicationWindow {
     id: window
-    width: 1080
-    height: 720
-    minimumWidth: 780
-    minimumHeight: 540
+    width: 1240
+    height: 800
+    minimumWidth: 940
+    minimumHeight: 640
     visible: true
     title: "BitFly"
     color: Theme.window
     font.family: Theme.fontFamily
+    palette.window: Theme.window
+    palette.windowText: Theme.ink
+    palette.text: Theme.ink
+    palette.buttonText: Theme.ink
+    palette.button: Theme.raised
+    palette.highlight: Theme.accent
+    palette.highlightedText: Theme.accentInk
+    palette.base: Theme.surface
 
-    property string page: "Stream"
+    property string page: "Library"
     property string pendingRemovalId: ""
+    property bool pendingRemovalIsLibrary: false
     property string endedSessionId: ""
+    property string pendingArtworkId: ""
 
     function displayName(item) {
         return item.name || item.title || item.fileName || item.id || "Torrent"
@@ -35,33 +45,51 @@ ApplicationWindow {
         while (value >= 1024 && unit < units.length - 1) { value /= 1024; ++unit }
         return (unit === 0 ? Math.round(value) : value.toFixed(1)) + " " + units[unit]
     }
-    function syncSessions() {
-        const incoming = app.sessions
-        const incomingIds = new Set()
+    function pageSubtitle() {
+        if (window.page === "Queue")
+            return "Line up files from any active session."
+        if (window.page === "Settings")
+            return "A few preferences. Make yourself at home."
+        if (window.page === "Search")
+            return "Find a stream through your connected indexers."
+        return "A little home for everything you want to watch."
+    }
+    function syncRows(model, incoming) {
+        const ids = new Set()
         for (let i = 0; i < incoming.length; ++i)
-            incomingIds.add(String(incoming[i].id || ""))
-
-        // Keep each ListModel row keyed by torrent id. Replacing app.sessions directly
-        // destroys every delegate on each backend refresh, stealing focus and resetting
-        // the user's selected media file.
-        for (let i = activeSessions.count - 1; i >= 0; --i) {
-            if (!incomingIds.has(activeSessions.get(i).sessionId))
-                activeSessions.remove(i)
-        }
+            ids.add(String(incoming[i].id || ""))
+        for (let i = model.count - 1; i >= 0; --i)
+            if (!ids.has(String(model.get(i).rowId)))
+                model.remove(i)
         for (let target = 0; target < incoming.length; ++target) {
             const item = incoming[target]
             const key = String(item.id || "")
             let existing = -1
-            for (let i = target; i < activeSessions.count; ++i) {
-                if (activeSessions.get(i).sessionId === key) { existing = i; break }
+            for (let i = target; i < model.count; ++i) {
+                if (String(model.get(i).rowId) === key) { existing = i; break }
             }
-            if (existing < 0) {
-                activeSessions.insert(target, { sessionId: key, sessionData: item })
-            } else {
-                if (existing !== target) activeSessions.move(existing, target, 1)
-                activeSessions.setProperty(target, "sessionData", item)
+            if (existing < 0)
+                model.insert(target, { rowId: key, payload: item })
+            else {
+                if (existing !== target) model.move(existing, target, 1)
+                model.setProperty(target, "payload", item)
             }
         }
+    }
+    function syncSessions() {
+        window.syncRows(activeSessions, app.sessions || [])
+    }
+    function syncLibrary() {
+        const all = app.library || []
+        const saved = []
+        for (let i = 0; i < all.length; ++i)
+            if (all[i].active !== true)
+                saved.push(all[i])
+        window.syncRows(libraryEntries, saved)
+    }
+    function syncAll() {
+        window.syncSessions()
+        window.syncLibrary()
     }
 
     ListModel {
@@ -69,66 +97,193 @@ ApplicationWindow {
         objectName: "activeSessions"
         dynamicRoles: true
     }
-    Component.onCompleted: window.syncSessions()
+    ListModel {
+        id: libraryEntries
+        objectName: "libraryEntries"
+        dynamicRoles: true
+    }
+    Component.onCompleted: window.syncAll()
     Connections {
         target: app
-        function onChanged() { window.syncSessions() }
+        function onChanged() { window.syncAll() }
+    }
+
+    Binding { target: Theme; property: "reducedMotion"; value: app.reducedMotion }
+    Image {
+        anchors.fill: parent
+        source: "assets/sky-clouds.png"
+        sourceSize.width: 1280
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        opacity: 1
     }
 
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
+        // Left rail ------------------------------------------------------------
         Rectangle {
-            Layout.preferredWidth: 194
+            Layout.preferredWidth: 190
             Layout.fillHeight: true
             color: Theme.rail
+
             ColumnLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 13
-                anchors.rightMargin: 13
-                anchors.topMargin: 20
-                anchors.bottomMargin: 13
+                anchors.leftMargin: 14
+                anchors.rightMargin: 14
+                anchors.topMargin: 22
+                anchors.bottomMargin: 18
                 spacing: 0
+
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.leftMargin: 7
-                    Layout.bottomMargin: 30
-                    spacing: 9
-                    Rectangle {
-                        Layout.preferredWidth: 27; Layout.preferredHeight: 27; radius: 7; color: "#e5ece7"
-                        Label { anchors.centerIn: parent; text: "B"; color: Theme.rail; font.pixelSize: 16; font.weight: Font.Bold }
+                    Layout.leftMargin: 6
+                    Layout.bottomMargin: 26
+                    spacing: 10
+                    Image {
+                        Layout.preferredWidth: 42
+                        Layout.preferredHeight: 42
+                        source: "assets/bitfly-mark.png"
+                        sourceSize.width: 84
+                        sourceSize.height: 84
+                        fillMode: Image.PreserveAspectFit
                     }
-                    Label { text: "BitFly"; color: "#f4f6f4"; font.pixelSize: 17; font.weight: Font.DemiBold }
+                    ColumnLayout {
+                        spacing: 0
+                        Label {
+                            text: "BitFly"
+                            color: Theme.ink
+                            font.family: Theme.displayFamily
+                            font.pixelSize: 23
+                            font.weight: Font.Normal
+                        }
+                        Label {
+                            text: "a little less waiting"
+                            color: Theme.secondary
+                            font.pixelSize: 10
+                        }
+                    }
                 }
+
                 Label {
-                    text: "LIBRARY"
-                    color: "#777f79"
-                    font.family: Theme.fontFamily
+                    text: "YOUR SPACE"
+                    color: Theme.faint
                     font.pixelSize: 10
                     font.weight: Font.DemiBold
-                    font.letterSpacing: 1.2
-                    Layout.leftMargin: 9
-                    Layout.bottomMargin: 9
+                    font.letterSpacing: 1.4
+                    Layout.leftMargin: 12
+                    Layout.bottomMargin: 8
                 }
-                NavItem { objectName: "navStream"; label: "Stream"; iconName: "stream"; selected: window.page === "Stream"; Layout.fillWidth: true; onClicked: window.page = "Stream" }
-                NavItem { objectName: "navQueue"; label: "Queue"; iconName: "queue"; selected: window.page === "Queue"; Layout.fillWidth: true; onClicked: window.page = "Queue" }
-                NavItem { objectName: "navHistory"; label: "History"; iconName: "history"; selected: window.page === "History"; Layout.fillWidth: true; onClicked: window.page = "History" }
+                NavItem {
+                    objectName: "navLibrary"
+                    label: "Library"
+                    iconName: "library"
+                    selected: window.page === "Library"
+                    Layout.fillWidth: true
+                    onClicked: window.page = "Library"
+                }
+                NavItem {
+                    objectName: "navQueue"
+                    label: "Queue"
+                    iconName: "queue"
+                    selected: window.page === "Queue"
+                    Layout.fillWidth: true
+                    Layout.topMargin: 3
+                    onClicked: window.page = "Queue"
+                }
+                NavItem {
+                    objectName: "navSearch"
+                    label: "Search"
+                    iconName: "search"
+                    selected: window.page === "Search"
+                    Layout.fillWidth: true
+                    Layout.topMargin: 3
+                    onClicked: window.page = "Search"
+                }
+                NavItem {
+                    objectName: "navSettings"
+                    label: "Settings"
+                    iconName: "settings"
+                    selected: window.page === "Settings"
+                    Layout.fillWidth: true
+                    Layout.topMargin: 3
+                    onClicked: window.page = "Settings"
+                }
+
                 Item { Layout.fillHeight: true }
-                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: "#373d39"; Layout.bottomMargin: 12 }
-                NavItem { objectName: "navSettings"; label: "Settings"; iconName: "settings"; selected: window.page === "Settings"; Layout.fillWidth: true; onClicked: window.page = "Settings" }
-                Label {
-                    Layout.leftMargin: 10
-                    Layout.topMargin: 10
-                    text: "LOCAL STREAMING"
-                    color: "#777f79"
-                    font.pixelSize: 9
-                    font.weight: Font.DemiBold
-                    font.letterSpacing: 0.8
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 96
+                    radius: Theme.radius
+                    color: Theme.surface
+                    border.color: Theme.line
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 6
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Label {
+                                text: "CACHE"
+                                color: Theme.faint
+                                font.pixelSize: 10
+                                font.weight: Font.DemiBold
+                                font.letterSpacing: 1.2
+                            }
+                            Item { Layout.fillWidth: true }
+                            Label {
+                                text: Math.round(Number(app.cacheLimitGiB) > 0
+                                                ? (Number(app.cacheBytes) / (Number(app.cacheLimitGiB) * 1073741824)) * 100
+                                                : 0) + "%"
+                                color: Theme.secondary
+                                font.pixelSize: 10
+                            }
+                        }
+                        Label {
+                            text: window.humanSize(app.cacheBytes) + " of " + app.cacheLimitGiB + " GiB"
+                            color: Theme.ink
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                        }
+                        Item {
+                            Layout.fillWidth: true
+                            implicitHeight: 4
+                            Rectangle { anchors.fill: parent; radius: 2; color: Theme.line }
+                            Rectangle {
+                                width: parent.width * Math.max(0, Math.min(1,
+                                    Number(app.cacheBytes) / Math.max(1, Number(app.cacheLimitGiB) * 1073741824)))
+                                height: parent.height
+                                radius: 2
+                                color: Theme.accent
+                            }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Rectangle {
+                                implicitWidth: 6; implicitHeight: 6; radius: 3
+                                Layout.alignment: Qt.AlignVCenter
+                                color: app.playerPath.length > 0 ? Theme.success : Theme.warning
+                            }
+                            Label {
+                                text: app.playerPath.length > 0 ? app.playerName + " ready" : "Choose a player"
+                                color: Theme.secondary
+                                font.pixelSize: 10
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                            }
+                            LinkButton {
+                                text: "Folder"
+                                onClicked: app.openStorageFolder()
+                            }
+                        }
+                    }
                 }
             }
         }
 
+        // Main column ---------------------------------------------------------
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -136,187 +291,464 @@ ApplicationWindow {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 57
-                color: Theme.surface
-                border.color: Theme.line
-                border.width: 1
+                Layout.preferredHeight: 98
+                color: Theme.window
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 27
-                    anchors.rightMargin: 24
-                    Label {
-                        text: window.page
-                        color: Theme.ink
-                        font.pixelSize: 15
-                        font.weight: Font.DemiBold
+                    anchors.leftMargin: 30
+                    anchors.rightMargin: 30
+                    spacing: 12
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 3
+                        Label {
+                            text: window.page
+                            color: Theme.ink
+                            font.family: Theme.displayFamily
+                            font.pixelSize: 32
+                            font.weight: Font.Normal
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: window.pageSubtitle()
+                            color: Theme.secondary
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                        }
                     }
-                    Item { Layout.fillWidth: true }
+                    Rectangle {
+                        radius: 11
+                        color: Theme.surface
+                        border.color: Theme.line
+                        implicitWidth: activeChip.implicitWidth + 22
+                        implicitHeight: 32
+                        RowLayout {
+                            id: activeChip
+                            anchors.centerIn: parent
+                            spacing: 7
+                            Rectangle {
+                                implicitWidth: 6; implicitHeight: 6; radius: 3
+                                Layout.alignment: Qt.AlignVCenter
+                                color: Theme.accent
+                            }
+                            Label {
+                                text: (app.sessions ? app.sessions.length : 0) + " active"
+                                color: Theme.secondary
+                                font.pixelSize: 10
+                                font.weight: Font.DemiBold
+                            }
+                        }
+                    }
+                    Rectangle {
+                        radius: 11
+                        color: Theme.surface
+                        border.color: Theme.line
+                        implicitWidth: cacheChip.implicitWidth + 22
+                        implicitHeight: 32
+                        RowLayout {
+                            id: cacheChip
+                            anchors.centerIn: parent
+                            spacing: 7
+                            Label {
+                                text: "LOCAL"
+                                color: Theme.accent
+                                font.pixelSize: 10
+                                font.weight: Font.DemiBold
+                                font.letterSpacing: 1
+                            }
+                            Label {
+                                text: window.humanSize(app.cacheBytes)
+                                color: Theme.secondary
+                                font.pixelSize: 10
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Inline status banners
+            Rectangle {
+                visible: app.error.length > 0
+                Layout.fillWidth: true
+                Layout.leftMargin: 30
+                Layout.rightMargin: 30
+                Layout.bottomMargin: 8
+                implicitHeight: errorRow.implicitHeight + 18
+                radius: Theme.radius
+                color: Theme.dangerWash
+                border.color: Theme.line
+                RowLayout {
+                    id: errorRow
+                    anchors.fill: parent
+                    anchors.leftMargin: 13
+                    anchors.rightMargin: 9
+                    spacing: 10
                     Label {
-                        visible: app.vlcPath.length > 0
-                        text: "VLC ready"
-                        color: Theme.secondary
+                        Layout.fillWidth: true
+                        text: app.error
+                        color: Theme.danger
                         font.pixelSize: 11
+                        wrapMode: Text.Wrap
                     }
-                    Rectangle { visible: app.vlcPath.length > 0; Layout.preferredWidth: 6; Layout.preferredHeight: 6; radius: 3; color: Theme.accent }
+                    QuietButton { text: "Dismiss"; onClicked: app.clearError() }
+                }
+            }
+            Rectangle {
+                visible: app.error.length === 0 && app.notice.length > 0
+                Layout.fillWidth: true
+                Layout.leftMargin: 30
+                Layout.rightMargin: 30
+                Layout.bottomMargin: 8
+                implicitHeight: noticeRow.implicitHeight + 18
+                radius: Theme.radius
+                color: Theme.accentWash
+                border.color: Theme.line
+                RowLayout {
+                    id: noticeRow
+                    anchors.fill: parent
+                    anchors.leftMargin: 13
+                    anchors.rightMargin: 9
+                    spacing: 10
+                    Label {
+                        Layout.fillWidth: true
+                        text: app.notice
+                        color: Theme.accent
+                        font.pixelSize: 11
+                        wrapMode: Text.Wrap
+                    }
+                    QuietButton { text: "Dismiss"; onClicked: app.clearNotice() }
                 }
             }
 
             StackLayout {
                 id: pages
-                currentIndex: window.page === "Stream" ? 0 : window.page === "Queue" ? 1 : window.page === "History" ? 2 : 3
+                currentIndex: window.page === "Queue" ? 1 : window.page === "Settings" ? 2 : window.page === "Search" ? 3 : 0
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                // Stream page
+                // Library -----------------------------------------------------
                 Item {
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 27
-                        anchors.rightMargin: 27
-                        anchors.topMargin: 21
-                        anchors.bottomMargin: 18
-                        spacing: 14
+                        anchors.leftMargin: 30
+                        anchors.rightMargin: 30
+                        anchors.topMargin: 8
+                        anchors.bottomMargin: 16
+                        spacing: 12
 
-                        RowLayout {
+                        Rectangle {
                             Layout.fillWidth: true
-                            spacing: 8
-                            TextField {
-                                id: input
-                                Layout.fillWidth: true
-                                implicitHeight: 39
-                                placeholderText: "Paste a magnet link"
-                                selectByMouse: true
-                                font.pixelSize: 12
-                                onAccepted: addButton.clicked()
-                                background: Rectangle { radius: Theme.radius; color: Theme.surface; border.color: input.activeFocus ? Theme.accent : Theme.line; border.width: input.activeFocus ? 2 : 1 }
-                            }
-                            QuietButton { text: "Open .torrent"; onClicked: torrentDialog.open() }
-                            QuietButton {
-                                id: addButton
-                                text: "Add stream"
-                                highlighted: true
-                                enabled: input.text.trim().length > 0
-                                onClicked: {
-                                    app.openInput(input.text.trim())
-                                    input.clear()
+                            Layout.preferredHeight: 58
+                            radius: Theme.radiusLarge
+                            color: Theme.surface
+                            border.color: magnetInput.activeFocus ? Theme.accent : Theme.line
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+                                spacing: 8
+                                Rectangle {
+                                    Layout.leftMargin: 4
+                                    implicitWidth: 74
+                                    implicitHeight: 30
+                                    radius: Theme.radiusSmall
+                                    color: Theme.accentWash
+                                    Label {
+                                        anchors.centerIn: parent
+                                        text: "MAGNET"
+                                        color: Theme.accent
+                                        font.pixelSize: 10
+                                        font.weight: Font.DemiBold
+                                        font.letterSpacing: 1
+                                    }
+                                }
+                                TextField {
+                                    id: magnetInput
+                                    Layout.fillWidth: true
+                                    Layout.minimumWidth: 120
+                                    implicitHeight: 40
+                                    placeholderText: "Paste a magnet link or info hash…"
+                                    Accessible.name: "Magnet link or info hash"
+                                    placeholderTextColor: Theme.faint
+                                    color: Theme.ink
+                                    selectByMouse: true
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 12
+                                    background: Rectangle { color: "transparent" }
+                                    onAccepted: addButton.clicked()
+                                }
+                                QuietButton {
+                                    text: "Open .torrent"
+                                    onClicked: torrentDialog.open()
+                                }
+                                QuietButton {
+                                    id: addButton
+                                    text: "Add stream"
+                                    highlighted: true
+                                    enabled: magnetInput.text.trim().length > 0
+                                    onClicked: {
+                                        app.openInput(magnetInput.text.trim())
+                                        magnetInput.clear()
+                                    }
                                 }
                             }
                         }
 
-                        Label {
-                            Layout.fillWidth: true
-                            text: "BitTorrent shares your IP address with peers and can upload downloaded pieces."
-                            color: Theme.secondary
-                            font.pixelSize: 11
-                            wrapMode: Text.Wrap
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Label {
-                                text: "Active sessions"
-                                color: Theme.ink
-                                font.pixelSize: 13
-                                font.weight: Font.DemiBold
-                            }
-                            Label {
-                                text: app.sessions.length ? app.sessions.length + " active" : ""
-                                color: Theme.secondary
-                                font.pixelSize: 11
-                            }
-                            Item { Layout.fillWidth: true }
-                            ToolButton {
-                                text: "Diagnostics  " + (app.advanced ? "⌃" : "⌄")
-                                font.pixelSize: 11
-                                onClicked: app.advanced = !app.advanced
-                                Accessible.name: app.advanced ? "Hide diagnostics" : "Show diagnostics"
-                            }
-                        }
-
-                        ScrollView {
-                            id: sessionScroll
+                        GridView {
+                            id: libraryScroll
+                            objectName: "libraryRepeater"
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
-                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                            ScrollBar.vertical: ScrollBar {
-                                policy: ScrollBar.AsNeeded
-                                background: Rectangle { color: "transparent" }
-                                contentItem: Rectangle { implicitWidth: 6; radius: 3; color: "#c9cfcb" }
-                            }
-                            ColumnLayout {
-                                width: sessionScroll.availableWidth
-                                spacing: 10
-                                Repeater {
-                                    objectName: "sessionRepeater"
-                                    model: activeSessions
-                                    delegate: SessionCard {
-                                        required property string sessionId
-                                        required property var sessionData
-                                        objectName: "sessionCard_" + sessionId
-                                        Layout.fillWidth: true
-                                        session: sessionData
-                                        onPlayRequested: (id, fileIndex) => app.play(id, fileIndex)
-                                        onQueueRequested: (id, fileIndex) => app.enqueue(id, fileIndex)
-                                        onPauseRequested: (id, paused) => app.pause(id, paused)
-                                        onRemoveRequested: id => { window.pendingRemovalId = id; removeDialog.open() }
+                            model: libraryEntries
+                            readonly property int columns: Math.max(2, Math.min(5, Math.floor(width / 218)))
+                            cellWidth: width / columns
+                            cellHeight: cellWidth + 110
+                            cacheBuffer: cellHeight
+                            reuseItems: true
+                            property bool userHasScrolled: false
+                            onMovementStarted: userHasScrolled = true
+                            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                            header: ColumnLayout {
+                                width: libraryScroll.width
+                                spacing: 14
+                                onHeightChanged: {
+                                    if (!libraryScroll.userHasScrolled)
+                                        Qt.callLater(function () { libraryScroll.positionViewAtBeginning() })
+                                }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.topMargin: 6
+                                    spacing: 9
+                                    Label {
+                                        text: "Active sessions"
+                                        color: Theme.ink
+                                        font.family: Theme.displayFamily
+                                        font.pixelSize: 21
+                                        font.weight: Font.Normal
+                                    }
+                                    Rectangle {
+                                        visible: activeSessions.count > 0
+                                        implicitWidth: activeCount.implicitWidth + 14
+                                        implicitHeight: 20
+                                        radius: 10
+                                        color: Theme.accentWash
+                                        Label {
+                                            id: activeCount
+                                            anchors.centerIn: parent
+                                            text: activeSessions.count
+                                            color: Theme.accent
+                                            font.pixelSize: 10
+                                            font.weight: Font.DemiBold
+                                        }
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    LinkButton {
+                                        text: app.advanced ? "Hide diagnostics" : "Diagnostics"
+                                        onClicked: app.advanced = !app.advanced
                                     }
                                 }
-                                Rectangle {
-                                    visible: app.sessions.length === 0
+
+                                Item {
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 182
+                                    implicitHeight: activeFlow.childrenRect.height
+                                    Flow {
+                                        id: activeFlow
+                                        width: parent.width
+                                        spacing: 14
+                                        readonly property int columns: Math.max(2, Math.min(3, Math.floor(width / 400)))
+                                        Repeater {
+                                            objectName: "sessionRepeater"
+                                            model: activeSessions
+                                            delegate: SessionCard {
+                                                required property string rowId
+                                                required property var payload
+                                                objectName: "sessionCard_" + rowId
+                                                width: (activeFlow.width - (activeFlow.columns - 1) * activeFlow.spacing) / activeFlow.columns
+                                                session: payload
+                                                onPlayRequested: (id, fileIndex) => app.play(id, fileIndex)
+                                                onQueueRequested: (id, fileIndex) => app.enqueue(id, fileIndex)
+                                                onPauseRequested: (id, paused) => app.pause(id, paused)
+                                                onArtworkRequested: id => { window.pendingArtworkId = id; artworkDialog.open() }
+                                                onRefreshRequested: id => app.refreshPreview(id)
+                                                onRevealRequested: id => app.revealSession(id)
+                                                onRemoveRequested: id => {
+                                                    window.pendingRemovalId = id
+                                                    window.pendingRemovalIsLibrary = false
+                                                    removeDialog.open()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    visible: activeSessions.count === 0
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 150
+                                    radius: Theme.radiusLarge
                                     color: Theme.surface
                                     border.color: Theme.line
-                                    radius: Theme.radius + 1
-                                    Column {
+                                    ColumnLayout {
                                         anchors.centerIn: parent
-                                        spacing: 7
-                                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "No active streams"; color: Theme.ink; font.pixelSize: 14; font.weight: Font.DemiBold }
-                                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Paste a magnet link above or open a .torrent file to begin."; color: Theme.secondary; font.pixelSize: 11 }
+                                        spacing: 5
+                                        Label {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: "What shall we watch?"
+                                            color: Theme.ink
+                                            font.pixelSize: 14
+                                            font.weight: Font.DemiBold
+                                        }
+                                        Label {
+                                            text: "Paste a magnet above or open a .torrent file to start buffering."
+                                            color: Theme.secondary
+                                            font.pixelSize: 11
+                                        }
                                     }
                                 }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.topMargin: 8
+                                    spacing: 9
+                                    Label {
+                                        text: "Library"
+                                        color: Theme.ink
+                                        font.family: Theme.displayFamily
+                                        font.pixelSize: 21
+                                        font.weight: Font.Normal
+                                    }
+                                    Label {
+                                        text: libraryEntries.count + (libraryEntries.count === 1 ? " saved stream" : " saved streams")
+                                        color: Theme.faint
+                                        font.pixelSize: 10
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    Label {
+                                        text: "Pick up where you left off"
+                                        color: Theme.faint
+                                        font.pixelSize: 10
+                                    }
+                                }
+
+                            }
+                            delegate: Item {
+                                id: shelfCell
+                                required property string rowId
+                                required property var payload
+                                width: libraryScroll.cellWidth
+                                height: libraryScroll.cellHeight
+                                PosterCard {
+                                    objectName: "libraryCard_" + shelfCell.rowId
+                                    anchors.top: parent.top
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.margins: 7
+                                    entry: shelfCell.payload
+                                    onPlayRequested: id => app.relaunch(id)
+                                    onArtworkRequested: id => { window.pendingArtworkId = id; artworkDialog.open() }
+                                    onRefreshRequested: id => app.refreshPreview(id)
+                                    onRevealRequested: id => app.revealSession(id)
+                                    onRemoveRequested: id => {
+                                        window.pendingRemovalId = id
+                                        window.pendingRemovalIsLibrary = true
+                                        removeDialog.open()
+                                    }
+                                }
+                            }
+                            footer: ColumnLayout {
+                                width: libraryScroll.width
+                                spacing: 14
+                                Rectangle {
+                                    visible: libraryEntries.count === 0
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 76
+                                    radius: Theme.radiusLarge
+                                    color: Theme.surface
+                                    border.color: Theme.line
+                                    Label {
+                                        anchors.centerIn: parent
+                                        text: "Your saved streams will live here. Their links and covers stay until you remove them."
+                                        color: Theme.faint
+                                        font.pixelSize: 11
+                                    }
+                                }
+
                                 Rectangle {
                                     visible: app.advanced
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 40
-                                    color: "#eef1ee"
+                                    Layout.preferredHeight: 42
                                     radius: Theme.radius
+                                    color: Theme.surface
+                                    border.color: Theme.line
                                     RowLayout {
                                         anchors.fill: parent
-                                        anchors.leftMargin: 12
-                                        anchors.rightMargin: 12
-                                        spacing: 14
-                                        Label { text: "Diagnostics"; color: Theme.ink; font.pixelSize: 11; font.weight: Font.DemiBold }
-                                        Label { text: "Cache  " + window.humanSize(app.cacheBytes) + " / " + app.cacheLimitGiB + " GiB"; color: Theme.secondary; font.pixelSize: 11 }
-                                        Label { visible: app.updateMessage.length > 0; text: app.updateMessage; color: Theme.secondary; font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                                        anchors.leftMargin: 13
+                                        anchors.rightMargin: 13
+                                        spacing: 16
+                                        Label {
+                                            text: "DIAGNOSTICS"
+                                            color: Theme.faint
+                                            font.pixelSize: 10
+                                            font.weight: Font.DemiBold
+                                            font.letterSpacing: 1
+                                        }
+                                        Label {
+                                            text: "Cache " + window.humanSize(app.cacheBytes) + " / " + app.cacheLimitGiB + " GiB"
+                                            color: Theme.secondary
+                                            font.pixelSize: 10
+                                        }
+                                        Label {
+                                            text: app.connectionLimit + " peer slots · " + app.uploadLimitKiB + " KiB/s up · " + app.streamAheadMiB + " MiB read-ahead"
+                                            color: Theme.secondary
+                                            font.pixelSize: 10
+                                        }
+                                        Item { Layout.fillWidth: true }
+                                        Label {
+                                            visible: app.updateMessage.length > 0
+                                            text: app.updateMessage
+                                            color: Theme.faint
+                                            font.pixelSize: 10
+                                            elide: Text.ElideRight
+                                            Layout.maximumWidth: 260
+                                        }
                                     }
                                 }
-                            }
-                        }
-
-                        RowLayout {
-                            visible: app.error.length > 0
-                            Layout.fillWidth: true
-                            Label {
-                                Layout.fillWidth: true
-                                text: app.error
-                                color: Theme.danger
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                            }
-                            QuietButton { text: "Dismiss"; onClicked: app.clearError() }
+                                Item { Layout.preferredHeight: 4 }                            }
                         }
                     }
                 }
 
-                // Queue page
+                // Queue -------------------------------------------------------
                 Item {
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 27
-                        spacing: 14
-                        Label { text: "Play next"; color: Theme.ink; font.pixelSize: 13; font.weight: Font.DemiBold }
+                        anchors.margins: 30
+                        anchors.topMargin: 8
+                        spacing: 12
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Label {
+                                text: "Up next"
+                                color: Theme.ink
+                                font.pixelSize: 14
+                                font.weight: Font.DemiBold
+                            }
+                            Label {
+                                text: "Your next file opens when the current player closes."
+                                color: Theme.faint
+                                font.pixelSize: 10
+                            }
+                            Item { Layout.fillWidth: true }
+                            Label {
+                                text: (app.queue ? app.queue.length : 0) + " queued"
+                                color: Theme.faint
+                                font.pixelSize: 10
+                            }
+                        }
+
                         ScrollView {
                             id: queueScroll
                             Layout.fillWidth: true
@@ -326,7 +758,7 @@ ApplicationWindow {
                             ScrollBar.vertical: ScrollBar {
                                 policy: ScrollBar.AsNeeded
                                 background: Rectangle { color: "transparent" }
-                                contentItem: Rectangle { implicitWidth: 6; radius: 3; color: "#c9cfcb" }
+                                contentItem: Rectangle { implicitWidth: 6; radius: 3; color: Theme.line }
                             }
                             ColumnLayout {
                                 width: queueScroll.availableWidth
@@ -334,48 +766,104 @@ ApplicationWindow {
                                 Repeater {
                                     model: app.queue
                                     delegate: Rectangle {
+                                        id: queueRow
                                         required property int index
                                         required property var modelData
                                         Layout.fillWidth: true
-                                        implicitHeight: 58
-                                        color: Theme.surface
-                                        border.color: Theme.line
+                                        implicitHeight: 64
                                         radius: Theme.radius
+                                        color: Theme.surface
+                                        border.color: queueHover.hovered ? Theme.accent : Theme.line
                                         RowLayout {
                                             anchors.fill: parent
-                                            anchors.leftMargin: 13
+                                            anchors.leftMargin: 10
                                             anchors.rightMargin: 8
-                                            Label { text: (index + 1).toString().padStart(2, "0"); color: Theme.faint; font.pixelSize: 11; Layout.preferredWidth: 22 }
+                                            spacing: 10
+                                            Rectangle {
+                                                implicitWidth: 38
+                                                implicitHeight: 38
+                                                radius: Theme.radiusSmall
+                                                color: Theme.raised
+                                                Label {
+                                                    anchors.centerIn: parent
+                                                    text: (queueRow.index + 1).toString().padStart(2, "0")
+                                                    color: Theme.accent
+                                                    font.pixelSize: 11
+                                                    font.weight: Font.DemiBold
+                                                }
+                                            }
                                             ColumnLayout {
                                                 Layout.fillWidth: true
+                                                Layout.minimumWidth: 0
                                                 spacing: 2
-                                                Label { text: window.displayName(modelData); color: Theme.ink; font.pixelSize: 12; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                                                Label { visible: window.displayFile(modelData).length > 0; text: window.displayFile(modelData); color: Theme.secondary; font.pixelSize: 10; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                                                Label {
+                                                    Layout.fillWidth: true
+                                                    text: window.displayName(queueRow.modelData)
+                                                    color: Theme.ink
+                                                    font.pixelSize: 12
+                                                    font.weight: Font.DemiBold
+                                                    elide: Text.ElideMiddle
+                                                }
+                                                Label {
+                                                    visible: window.displayFile(queueRow.modelData).length > 0
+                                                    Layout.fillWidth: true
+                                                    text: window.displayFile(queueRow.modelData)
+                                                    color: Theme.secondary
+                                                    font.pixelSize: 10
+                                                    elide: Text.ElideMiddle
+                                                }
                                             }
-                                            ToolButton { text: "↑"; enabled: index > 0; Accessible.name: "Move up"; onClicked: app.moveQueue(index, index - 1) }
-                                            ToolButton { text: "↓"; enabled: index < app.queue.length - 1; Accessible.name: "Move down"; onClicked: app.moveQueue(index, index + 1) }
-                                            ToolButton { text: "×"; Accessible.name: "Remove from queue"; onClicked: app.removeQueue(index) }
+                                            IconButton {
+                                                glyph: "↑"
+                                                hint: "Move up"
+                                                enabled: queueRow.index > 0
+                                                onClicked: app.moveQueue(queueRow.index, queueRow.index - 1)
+                                            }
+                                            IconButton {
+                                                glyph: "↓"
+                                                hint: "Move down"
+                                                enabled: queueRow.index < app.queue.length - 1
+                                                onClicked: app.moveQueue(queueRow.index, queueRow.index + 1)
+                                            }
+                                            IconButton {
+                                                glyph: "✕"
+                                                hint: "Remove from queue"
+                                                destructive: true
+                                                onClicked: app.removeQueue(queueRow.index)
+                                            }
                                             QuietButton {
                                                 text: "Play"
                                                 highlighted: true
-                                                enabled: modelData.id !== undefined && modelData.fileIndex !== undefined
-                                                onClicked: app.playQueued(index)
+                                                implicitHeight: 30
+                                                enabled: queueRow.modelData.id !== undefined && queueRow.modelData.fileIndex !== undefined
+                                                onClicked: app.playQueued(queueRow.index)
                                             }
                                         }
+                                        HoverHandler { id: queueHover }
                                     }
                                 }
                                 Rectangle {
-                                    visible: app.queue.length === 0
+                                    visible: !app.queue || app.queue.length === 0
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 150
+                                    Layout.preferredHeight: 160
+                                    radius: Theme.radiusLarge
                                     color: Theme.surface
                                     border.color: Theme.line
-                                    radius: Theme.radius + 1
-                                    Column {
+                                    ColumnLayout {
                                         anchors.centerIn: parent
-                                        spacing: 6
-                                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Your queue is empty"; color: Theme.ink; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Add media from an active stream with Queue."; color: Theme.secondary; font.pixelSize: 11 }
+                                        spacing: 5
+                                        Label {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: "Nothing queued"
+                                            color: Theme.ink
+                                            font.pixelSize: 13
+                                            font.weight: Font.DemiBold
+                                        }
+                                        Label {
+                                            text: "Use Queue on an active session to line up its next file."
+                                            color: Theme.secondary
+                                            font.pixelSize: 11
+                                        }
                                     }
                                 }
                             }
@@ -383,160 +871,245 @@ ApplicationWindow {
                     }
                 }
 
-                // History page
-                Item {
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 27
-                        spacing: 12
-                        Label { text: "Recently streamed"; color: Theme.ink; font.pixelSize: 13; font.weight: Font.DemiBold }
-                        ScrollView {
-                            id: historyScroll
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                            ScrollBar.vertical: ScrollBar {
-                                policy: ScrollBar.AsNeeded
-                                background: Rectangle { color: "transparent" }
-                                contentItem: Rectangle { implicitWidth: 6; radius: 3; color: "#c9cfcb" }
-                            }
-                            ColumnLayout {
-                                width: historyScroll.availableWidth
-                                spacing: 8
-                                Repeater {
-                                    model: app.history
-                                    delegate: Rectangle {
-                                        required property var modelData
-                                        Layout.fillWidth: true
-                                        implicitHeight: 58
-                                        color: Theme.surface
-                                        border.color: Theme.line
-                                        radius: Theme.radius
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: 13
-                                            anchors.rightMargin: 12
-                                            ColumnLayout {
-                                                Layout.fillWidth: true
-                                                spacing: 2
-                                                Label { text: window.displayName(modelData); color: Theme.ink; font.pixelSize: 12; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                                                Label { text: window.displayFile(modelData); color: Theme.secondary; font.pixelSize: 10; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                                            }
-                                            QuietButton { text: "Stream again"; enabled: modelData.id !== undefined; onClicked: app.relaunch(modelData.id) }
-                                        }
-                                    }
-                                }
-                                Rectangle {
-                                    visible: app.history.length === 0
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 150
-                                    color: Theme.surface
-                                    border.color: Theme.line
-                                    radius: Theme.radius + 1
-                                    Column {
-                                        anchors.centerIn: parent
-                                        spacing: 6
-                                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Nothing here yet"; color: Theme.ink; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Streams you play will appear here."; color: Theme.secondary; font.pixelSize: 11 }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Settings page
+                // Settings ----------------------------------------------------
                 Item {
                     ScrollView {
                         id: settingsScroll
                         anchors.fill: parent
-                        anchors.leftMargin: 27
-                        anchors.rightMargin: 27
-                        anchors.topMargin: 23
-                        anchors.bottomMargin: 20
+                        anchors.leftMargin: 30
+                        anchors.rightMargin: 30
+                        anchors.topMargin: 8
+                        anchors.bottomMargin: 16
                         clip: true
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         ScrollBar.vertical: ScrollBar {
                             policy: ScrollBar.AsNeeded
                             background: Rectangle { color: "transparent" }
-                            contentItem: Rectangle { implicitWidth: 6; radius: 3; color: "#c9cfcb" }
+                            contentItem: Rectangle { implicitWidth: 6; radius: 3; color: Theme.line }
                         }
                         ColumnLayout {
-                            width: settingsScroll.availableWidth
-                            spacing: 20
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 5
-                                Label { text: "Playback"; color: Theme.ink; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                Label { text: "BitFly hands playback to the VLC installation on this PC."; color: Theme.secondary; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    Label { text: app.vlcPath.length ? app.vlcPath : "VLC executable not selected"; color: app.vlcPath.length ? Theme.secondary : Theme.warning; font.pixelSize: 11; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                                    QuietButton { text: "Choose VLC…"; onClicked: vlcDialog.open() }
-                                }
-                                LinkButton {
-                                    text: "Download VLC from VideoLAN"
-                                    Layout.alignment: Qt.AlignLeft
-                                    Accessible.name: "Download VLC from VideoLAN"
-                                    onClicked: Qt.openUrlExternally("https://www.videolan.org/vlc/")
-                                }
-                            }
-                            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.line }
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 5
-                                Label { text: "Cache"; color: Theme.ink; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                Label { text: "Downloaded data is stored locally and bounded by the limit below."; color: Theme.secondary; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    Label { text: app.cachePath || "Default cache location"; color: Theme.secondary; font.pixelSize: 11; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                            width: Math.min(settingsScroll.availableWidth, 860)
+                            spacing: 10
+
+                            SettingsCard {
+                                title: "Storage"
+                                SettingRow {
+                                    title: "Download folder"
+                                    hint: "BitFly writes each session into a managed “torrents” subfolder here. Changing it applies to new sessions immediately; active sessions keep their original folder so playback and cleanup stay consistent."
+                                    detail: app.cachePath
                                     QuietButton { text: "Choose folder…"; onClicked: cacheDialog.open() }
+                                    IconButton { glyph: "↗"; hint: "Open download folder"; onClicked: app.openStorageFolder() }
                                 }
-                                RowLayout {
-                                    spacing: 10
-                                    Label { text: "Cache limit"; color: Theme.ink; font.pixelSize: 11 }
+                                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.line }
+                                SettingRow {
+                                    title: "Cache limit"
+                                    hint: "Hard cap on managed data across every download folder. At the cap, background sessions pause and new downloads are refused until space is freed."
+                                    detail: "In use: " + window.humanSize(app.cacheBytes)
                                     SettingSpinBox {
-                                        from: 1; to: 512; stepSize: 1
+                                        Accessible.name: "Cache limit in GiB"
+                                        from: 1; to: 1024; stepSize: 1
                                         value: app.cacheLimitGiB
                                         editable: true
-                                        implicitHeight: 32
                                         onValueModified: app.cacheLimitGiB = value
                                         textFromValue: value => value + " GiB"
                                         valueFromText: text => parseInt(text)
                                     }
-                                    Label { text: "In use: " + window.humanSize(app.cacheBytes); color: Theme.secondary; font.pixelSize: 11 }
                                 }
                             }
-                            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.line }
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 6
-                                Label { text: "Seeding"; color: Theme.ink; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                Label { text: "After playback, BitFly can seed briefly to help other peers. BitTorrent shares your IP address with the swarm."; color: Theme.secondary; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                                RowLayout {
-                                    Label { text: "Seed for"; color: Theme.ink; font.pixelSize: 11 }
+
+                            SettingsCard {
+                                title: "Streaming"
+                                SettingRow {
+                                    title: "Read-ahead buffer"
+                                    hint: "How much data to prioritise ahead of the current read position. This is not a limit on total downloaded storage."
                                     SettingSpinBox {
-                                        from: 1; to: 1440; stepSize: 5
-                                        value: app.seedMinutes
+                                        Accessible.name: "Read-ahead buffer in MiB"
+                                        from: 8; to: 8192; stepSize: 8
+                                        value: app.streamAheadMiB
                                         editable: true
-                                        implicitHeight: 32
-                                        onValueModified: app.seedMinutes = value
-                                        textFromValue: value => value + " min"
+                                        onValueModified: app.streamAheadMiB = value
+                                        textFromValue: value => value + " MiB"
                                         valueFromText: text => parseInt(text)
                                     }
                                 }
+                                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.line }
+                                SettingRow {
+                                    title: "Optional seed duration"
+                                    hint: "If you choose Seed after playback, upload for this many minutes before pausing. Zero disables that option. Uploads while downloading are controlled separately by the upload cap."
+                                    SettingSpinBox {
+                                        Accessible.name: "Seed duration in minutes"
+                                        from: 0; to: 1440; stepSize: 5
+                                        value: app.seedMinutes
+                                        editable: true
+                                        onValueModified: app.seedMinutes = value
+                                        textFromValue: value => value === 0 ? "Off" : value + " min"
+                                        valueFromText: text => text === "Off" ? 0 : parseInt(text)
+                                    }
+                                }
                             }
-                            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.line }
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Label { text: "Updates"; color: Theme.ink; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                Item { Layout.fillWidth: true }
-                                Label { visible: app.updateMessage.length > 0; text: app.updateMessage; color: Theme.secondary; font.pixelSize: 11; elide: Text.ElideRight; Layout.maximumWidth: 240 }
-                                QuietButton { text: "Check for updates"; onClicked: app.checkUpdates() }
+
+                            SettingsCard {
+                                title: "Network"
+                                SettingRow {
+                                    title: "Peer connections"
+                                    hint: "Maximum simultaneous peer connections across all sessions. More peers can raise throughput, but every connection costs memory and sockets."
+                                    SettingSpinBox {
+                                        Accessible.name: "Maximum peer connections"
+                                        from: 20; to: 1000; stepSize: 10
+                                        value: app.connectionLimit
+                                        editable: true
+                                        onValueModified: app.connectionLimit = value
+                                        textFromValue: value => value.toString()
+                                        valueFromText: text => parseInt(text)
+                                    }
+                                }
+                                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.line }
+                                SettingRow {
+                                    title: "Download cap"
+                                    hint: "Limit download bandwidth when you need to leave room for other apps. Zero means unlimited; actual speed depends on peers and your connection."
+                                    SettingSpinBox {
+                                        Accessible.name: "Download cap in KiB per second"
+                                        from: 0; to: 102400; stepSize: 256
+                                        value: app.downloadLimitKiB
+                                        editable: true
+                                        onValueModified: app.downloadLimitKiB = value
+                                        textFromValue: value => value === 0 ? "Unlimited" : value + " KiB/s"
+                                        valueFromText: text => text === "Unlimited" ? 0 : parseInt(text)
+                                    }
+                                }
+                                SettingRow {
+                                    title: "Upload cap"
+                                    hint: "Limits upload bandwidth while downloading. A small cap keeps downstream traffic prioritised; some upload keeps peers reciprocating. 0 removes the cap."
+                                    SettingSpinBox {
+                                        Accessible.name: "Upload cap in KiB per second"
+                                        from: 0; to: 102400; stepSize: 16
+                                        value: app.uploadLimitKiB
+                                        editable: true
+                                        onValueModified: app.uploadLimitKiB = value
+                                        textFromValue: value => value === 0 ? "Unlimited" : value + " KiB/s"
+                                        valueFromText: text => text === "Unlimited" ? 0 : parseInt(text)
+                                    }
+                                }
                             }
+
+                            SettingsCard {
+                                title: "Discovery"
+                                SettingRow {
+                                    title: "Find peers with DHT"
+                                    hint: "Find peers through the distributed hash table. Private torrents keep their own tracker rules."
+                                    Switch { checked: app.dhtEnabled; onToggled: app.dhtEnabled = checked; Accessible.name: "DHT peer discovery" }
+                                }
+                                SettingRow {
+                                    title: "Local peer discovery"
+                                    hint: "Look for peers on your local network. Disable this on networks where you do not want to announce torrent activity."
+                                    Switch { checked: app.localDiscoveryEnabled; onToggled: app.localDiscoveryEnabled = checked; Accessible.name: "Local peer discovery" }
+                                }
+                                SettingRow {
+                                    title: "Automatic port mapping"
+                                    hint: "Ask your router to open an incoming peer port using UPnP or NAT-PMP. This is off by default and depends on your router."
+                                    Switch { checked: app.portMappingEnabled; onToggled: app.portMappingEnabled = checked; Accessible.name: "Automatic port mapping" }
+                                }
+                            }
+
+                            SettingsCard {
+                                title: "Playback"
+                                SettingRow {
+                                    title: "External player"
+                                    hint: "Choose a media player that supports HTTP streams, such as VLC. BitFly opens it only when you press Play."
+                                    detail: app.playerPath.length ? app.playerPath : "Not selected"
+                                    QuietButton { text: "Choose player…"; onClicked: vlcDialog.open() }
+                                    LinkButton {
+                                        Layout.leftMargin: 4
+                                        text: "Get VLC"
+                                        onClicked: Qt.openUrlExternally("https://www.videolan.org/vlc/")
+                                    }
+                                }
+                                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.line }
+                                SettingRow {
+                                    title: "Diagnostics"
+                                    hint: "Shows cache, read-ahead, peer, and update details on the Library page. Useful when tuning speed or reporting a problem."
+                                    detail: app.advanced ? "Visible on the Library page" : "Hidden"
+                                    QuietButton {
+                                        text: app.advanced ? "Hide" : "Show"
+                                        onClicked: app.advanced = !app.advanced
+                                    }
+                                }
+                            }
+
+                            SettingsCard {
+                                title: "Look & feel"
+                                SettingRow {
+                                    title: "Reduce motion"
+                                    hint: "Replaces cover unfolding, hover movement, and button springs with immediate state changes."
+                                    Switch { checked: app.reducedMotion; onToggled: app.reducedMotion = checked; Accessible.name: "Reduce motion" }
+                                }
+                                SettingRow {
+                                    title: "Video previews"
+                                    hint: "Capture a small frame from an active stream for its cover. Turning this off saves the temporary decoder work; saved artwork stays."
+                                    Switch { checked: app.generatePreviews; onToggled: app.generatePreviews = checked; Accessible.name: "Generate video previews" }
+                                }
+                            }
+
+                            SettingsCard {
+                                title: "Cloudflare connection"
+                                SettingRow {
+                                    title: "Cloudflare One Client"
+                                    hint: "This separate client changes your device's network connection, including other apps. BitFly does not bundle it or enable it automatically."
+                                    detail: app.cloudflareStatus
+                                    QuietButton { text: "Refresh"; enabled: !app.cloudflareBusy; onClicked: app.refreshCloudflare() }
+                                    QuietButton { text: app.cloudflareInstalled ? "Open client" : "Get client"; onClicked: app.cloudflareInstalled ? app.openCloudflareClient() : app.openCloudflareDownload() }
+                                }
+                                SettingRow {
+                                    visible: app.cloudflareInstalled
+                                    title: "Connection"
+                                    hint: "Connect or disconnect the installed Cloudflare client. You may need to accept its terms or sign in in its own window first."
+                                    QuietButton { text: "Connect"; enabled: !app.cloudflareBusy; onClicked: app.connectCloudflare() }
+                                    QuietButton { text: "Disconnect"; enabled: !app.cloudflareBusy; onClicked: app.disconnectCloudflare() }
+                                }
+                                SettingRow {
+                                    visible: app.cloudflareInstalled
+                                    title: "Change mode"
+                                    hint: "DNS only encrypts DNS lookups; it does not tunnel torrent traffic. Traffic + DNS routes supported device traffic through Cloudflare. Organisation policies can restrict changes."
+                                    ComboBox {
+                                        id: cloudflareMode
+                                        implicitWidth: 210
+                                        model: ["DNS · HTTPS", "DNS · TLS", "Traffic + DNS · HTTPS", "Traffic + DNS · TLS", "Traffic only"]
+                                        currentIndex: -1
+                                        displayText: currentIndex < 0 ? "Choose a mode…" : currentText
+                                        enabled: !app.cloudflareBusy
+                                        onActivated: index => {
+                                            app.setCloudflareMode(["doh", "dot", "warp+doh", "warp+dot", "tunnel_only"][index])
+                                            cloudflareMode.currentIndex = -1
+                                        }
+                                        Accessible.name: "Cloudflare connection mode"
+                                    }
+                                }
+                            }
+
+                            SettingsCard {
+                                title: "Updates"
+                                SettingRow {
+                                    title: "Stable releases"
+                                    hint: "BitFly checks at each app launch and downloads available updates in the background. Installers are verified first. Installing closes BitFly and may require Windows permission."
+                                    detail: app.updateMessage.length ? app.updateMessage : "Checks at each app launch"
+                                    QuietButton { text: "Check now"; enabled: !app.updateBusy; onClicked: app.checkUpdates() }
+                                    QuietButton { visible: app.availableVersion.length > 0 && !app.updateReady; text: "Download update"; enabled: !app.updateBusy; highlighted: true; onClicked: app.downloadUpdate() }
+                                    QuietButton { visible: app.updateReady; text: "Install update"; enabled: !app.updateBusy; highlighted: true; onClicked: app.installUpdate() }
+                                }
+                                ProgressBar {
+                                    Layout.fillWidth: true
+                                    visible: app.updateBusy && app.availableVersion.length > 0
+                                    value: app.updateProgress
+                                    Accessible.name: "Update download progress"
+                                }
+                            }
+                            Item { Layout.preferredHeight: 6 }
                         }
                     }
+                }
+                SearchPage {
+                    controller: app
+                    onStreamChosen: window.page = "Library"
                 }
             }
         }
@@ -550,49 +1123,136 @@ ApplicationWindow {
         onAccepted: app.openTorrent(selectedFile)
     }
     FileDialog {
-        id: vlcDialog
-        title: "Select VLC executable"
-        nameFilters: ["VLC executable (vlc.exe)", "Applications (*.exe)"]
+        id: artworkDialog
+        title: "Choose library artwork"
+        nameFilters: ["Images (*.png *.jpg *.jpeg *.webp)"]
         fileMode: FileDialog.OpenFile
-        onAccepted: app.setVlcPath(selectedFile)
+        onAccepted: app.setLibraryArtwork(window.pendingArtworkId, selectedFile)
+    }
+    FileDialog {
+        id: vlcDialog
+        title: "Select media player executable"
+        nameFilters: ["Applications (*.exe)"]
+        fileMode: FileDialog.OpenFile
+        onAccepted: app.setPlayerPath(selectedFile)
     }
     FolderDialog {
         id: cacheDialog
-        title: "Choose cache folder"
+        title: "Choose download folder"
         onAccepted: app.setCachePath(selectedFolder)
     }
+
     Dialog {
         id: removeDialog
-        title: "Remove torrent?"
+        title: window.pendingRemovalIsLibrary ? "Remove from library?" : "Remove torrent?"
         modal: true
         anchors.centerIn: parent
-        standardButtons: Dialog.Cancel
-        width: 390
+        width: 430
+        padding: 20
+        background: Rectangle {
+            color: Theme.raised
+            radius: Theme.radiusLarge
+            border.color: Theme.line
+        }
         contentItem: ColumnLayout {
             spacing: 12
-            Label { text: "Remove this torrent from BitFly?"; color: Theme.ink; font.pixelSize: 13; wrapMode: Text.Wrap; Layout.fillWidth: true }
-            CheckBox { id: deleteData; text: "Also delete downloaded data"; checked: false; font.pixelSize: 11 }
-            QuietButton { text: "Remove"; destructive: true; Layout.alignment: Qt.AlignRight; onClicked: { app.remove(window.pendingRemovalId, deleteData.checked); removeDialog.close(); deleteData.checked = false } }
+            Label {
+                Layout.fillWidth: true
+                text: window.pendingRemovalIsLibrary
+                      ? "This removes the saved poster and any retained files for this entry. You will need the magnet again to stream it."
+                      : "This stops the live session. Cached media can be kept for the library or deleted from disk."
+                color: Theme.secondary
+                font.pixelSize: 11
+                wrapMode: Text.Wrap
+            }
+            CheckBox {
+                id: deleteData
+                visible: !window.pendingRemovalIsLibrary
+                text: "Also delete downloaded data"
+                font.family: Theme.fontFamily
+                font.pixelSize: 11
+                contentItem: Text {
+                    leftPadding: deleteData.indicator.width + 8
+                    text: deleteData.text
+                    color: Theme.secondary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11
+                    verticalAlignment: Text.AlignVCenter
+                }
+                indicator: Rectangle {
+                    implicitWidth: 18; implicitHeight: 18
+                    radius: 5
+                    color: deleteData.checked ? Theme.accent : Theme.raised
+                    border.color: deleteData.checked ? Theme.accent : Theme.line
+                    Text {
+                        anchors.centerIn: parent
+                        visible: deleteData.checked
+                        text: "✓"
+                        color: Theme.accentInk
+                        font.pixelSize: 11
+                        font.weight: Font.Bold
+                    }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Item { Layout.fillWidth: true }
+                QuietButton { text: "Cancel"; onClicked: removeDialog.close() }
+                QuietButton {
+                    text: "Remove"
+                    destructive: true
+                    onClicked: {
+                        if (window.pendingRemovalIsLibrary)
+                            app.removeLibraryEntry(window.pendingRemovalId)
+                        else
+                            app.remove(window.pendingRemovalId, deleteData.checked)
+                        removeDialog.close()
+                        deleteData.checked = false
+                    }
+                }
+            }
         }
         onClosed: deleteData.checked = false
     }
+
     Dialog {
         id: endedDialog
         title: "Playback finished"
         modal: true
         anchors.centerIn: parent
-        standardButtons: Dialog.NoButton
-        width: 410
+        width: 450
+        padding: 20
+        background: Rectangle {
+            color: Theme.raised
+            radius: Theme.radiusLarge
+            border.color: Theme.line
+        }
         contentItem: ColumnLayout {
             spacing: 12
-            Label { text: "What would you like to do with this torrent?"; color: Theme.ink; font.pixelSize: 13; wrapMode: Text.Wrap; Layout.fillWidth: true }
-            Label { text: "Keep it available, remove its data, or seed for " + app.seedMinutes + " minutes."; color: Theme.secondary; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
+            Label {
+                text: "What should BitFly do with this torrent?"
+                color: Theme.ink
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+            Label {
+                text: "Keep it available in the library, delete its data, or seed for "
+                      + (app.seedMinutes === 0 ? "the configured duration (currently off)" : app.seedMinutes + " minutes") + "."
+                color: Theme.secondary
+                font.pixelSize: 11
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
             RowLayout {
                 Layout.fillWidth: true
+                spacing: 8
                 Item { Layout.fillWidth: true }
                 QuietButton { text: "Keep"; onClicked: { app.finishSession(window.endedSessionId, "keep"); endedDialog.close() } }
                 QuietButton { text: "Delete data"; destructive: true; onClicked: { app.finishSession(window.endedSessionId, "delete"); endedDialog.close() } }
-                QuietButton { text: "Seed"; highlighted: true; onClicked: { app.finishSession(window.endedSessionId, "seed"); endedDialog.close() } }
+                QuietButton { text: "Seed"; enabled: app.seedMinutes > 0; onClicked: { app.finishSession(window.endedSessionId, "seed"); endedDialog.close() } }
             }
         }
     }

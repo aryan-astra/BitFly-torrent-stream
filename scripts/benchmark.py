@@ -21,7 +21,8 @@ for _ in range(args.runs):
     with tempfile.TemporaryDirectory(prefix="bitfly-benchmark-") as directory:
         marker = Path(directory) / "frame.json"
         start = time.perf_counter()
-        child = subprocess.Popen([str(args.executable.resolve()), "--startup-probe", str(marker), "--quit-after", "3000"])
+        child = subprocess.Popen([str(args.executable.resolve()), "--diagnostic-data-dir", directory,
+                                  "--startup-probe", str(marker), "--quit-after", "3000"])
         process = psutil.Process(child.pid)
         peak_rss = 0
         peak_committed = 0
@@ -59,7 +60,7 @@ for _ in range(args.runs):
                         "availableSystemMemoryAtStartBytes": available_at_start, "cpuSeconds": cpu_seconds,
                         "idleCpuSeconds": idle_cpu_seconds, "idleObservedSeconds": idle_observed_seconds})
 report = {"platform": platform.platform(), "processor": platform.processor(), "runs": results,
-          "conditions": "empty-session app, first frame, 3-second idle, warm filesystem cache after first run; not a controlled cold boot",
+          "conditions": "isolated empty-session app, first frame, 3-second idle, update/network-helper startup checks disabled; warm filesystem cache after first run; not a controlled cold boot or active playback measurement",
           "medianFirstFrameMs": statistics.median(row["firstFrameMs"] for row in results),
           "executableBytes": args.executable.stat().st_size}
 args.output.parent.mkdir(parents=True, exist_ok=True)

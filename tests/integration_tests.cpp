@@ -228,6 +228,168 @@ bool awaitStop(bitfly::TorrentEngine& engine, int timeoutMs = 5000) {
 class IntegrationTests final : public QObject {
     Q_OBJECT
   private slots:
+    void reopensRetainedDataWithTheSameIdAndCanRecreatePurgedId() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const QString currentBase = temp.filePath("current");
+        const QString formerBase = temp.filePath("former");
+        QVERIFY(QDir().mkpath(currentBase));
+        QVERIFY(QDir().mkpath(formerBase));
+        const QString id = QStringLiteral("5a2d996a-f169-4d02-b7f1-9ea2dc5fa111");
+        const QString magnet =
+            QStringLiteral("magnet:?xt=urn:btih:1111111111111111111111111111111111111111");
+        const QString retainedDir = QDir(formerBase).filePath("torrents/" + id);
+        const QString dataDir = QDir(retainedDir).filePath("data");
+        QVERIFY(QDir().mkpath(dataDir));
+        QFile marker(QDir(retainedDir).filePath(".retained"));
+        QVERIFY(marker.open(QIODevice::WriteOnly));
+        QCOMPARE(marker.write(id.toUtf8()), qint64(id.size()));
+        marker.close();
+        QFile savedMagnet(QDir(retainedDir).filePath(".magnet"));
+        QVERIFY(savedMagnet.open(QIODevice::WriteOnly));
+        QCOMPARE(savedMagnet.write(magnet.toUtf8()), qint64(magnet.size()));
+        savedMagnet.close();
+        QFile payload(QDir(dataDir).filePath("cached.bin"));
+        QVERIFY(payload.open(QIODevice::WriteOnly));
+        QCOMPARE(payload.write("keep these bytes"), qint64(16));
+        payload.close();
+
+        bitfly::TorrentEngine engine(currentBase);
+        engine.setDiscovery(false, false, false);
+        engine.adoptStorageRoots({formerBase});
+        QVariantList sessions;
+        connect(&engine, &bitfly::TorrentEngine::sessionsChanged, this,
+                [&](const QVariantList& value) { sessions = value; });
+        QSignalSpy added(&engine, &bitfly::TorrentEngine::sessionAdded);
+        QSignalSpy removed(&engine, &bitfly::TorrentEngine::removalFinished);
+        QVERIFY(added.isValid());
+
+        engine.reopen(id, magnet);
+        QTRY_VERIFY_WITH_TIMEOUT(!findSession(sessions, id).isEmpty(), 5000);
+        QCOMPARE(added.count(), 1);
+        QCOMPARE(added.first().at(0).toString(), id);
+        QCOMPARE(QDir::cleanPath(findSession(sessions, id).value("savePath").toString()),
+                 QDir::cleanPath(dataDir));
+        QVERIFY(QFileInfo::exists(payload.fileName()));
+
+        engine.remove(id, false);
+        QVERIFY(QFileInfo::exists(payload.fileName()));
+        QVERIFY(QFileInfo::exists(QDir(retainedDir).filePath(".retained")));
+        QTRY_COMPARE_WITH_TIMEOUT(removed.count(), 1, 5000);
+        QVERIFY(removed.first().at(2).toBool());
+        engine.reopen(id, magnet);
+        QTRY_VERIFY_WITH_TIMEOUT(!findSession(sessions, id).isEmpty(), 5000);
+        QCOMPARE(added.count(), 2);
+        QCOMPARE(QDir::cleanPath(findSession(sessions, id).value("savePath").toString()),
+                 QDir::cleanPath(dataDir));
+        QVERIFY(QFileInfo::exists(payload.fileName()));
+
+        engine.remove(id, false);
+        QTRY_COMPARE_WITH_TIMEOUT(removed.count(), 2, 5000);
+        engine.purge(id);
+        QVERIFY(!QFileInfo::exists(retainedDir));
+        engine.reopen(id, magnet);
+        QTRY_VERIFY_WITH_TIMEOUT(!findSession(sessions, id).isEmpty(), 5000);
+        QCOMPARE(added.count(), 3);
+        QCOMPARE(QDir::cleanPath(findSession(sessions, id).value("savePath").toString()),
+                 QDir::cleanPath(QDir(currentBase).filePath("torrents/" + id + "/data")));
+        QVERIFY(awaitStop(engine));
+    }
+
+    void restoresActiveSessionsFromTheirOriginalStorageRoot() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const QString formerBase = temp.filePath("former");
+        const QString currentBase = temp.filePath("current");
+        const QString source = temp.filePath("source");
+        QVERIFY(QDir().mkpath(source));
+        QFile media(QDir(source).filePath("retained.wav"));
+        QVERIFY(media.open(QIODevice::WriteOnly));
+        QCOMPARE(media.write(QByteArray(4096, 'a')), qint64(4096));
+        media.close();
+        lt::file_storage files;
+        files.add_file("retained.wav", 4096);
+        lt::create_torrent creator(files, 16 * 1024, lt::create_torrent::v1_only);
+        creator.set_priv(true);
+        lt::set_piece_hashes(creator, QDir::toNativeSeparators(source).toStdString());
+        std::vector<char> bytes;
+        lt::bencode(std::back_inserter(bytes), creator.generate());
+        QFile torrent(temp.filePath("retained.torrent"));
+        QVERIFY(torrent.open(QIODevice::WriteOnly));
+        QCOMPARE(torrent.write(bytes.data(), qint64(bytes.size())), qint64(bytes.size()));
+        torrent.close();
+        QString id;
+        QString originalPath;
+        {
+            bitfly::TorrentEngine engine(formerBase);
+            engine.setDiscovery(false, false, false);
+            QVariantList sessions;
+            connect(&engine, &bitfly::TorrentEngine::sessionsChanged, this,
+                    [&](const QVariantList& value) { sessions = value; });
+            engine.add(torrent.fileName());
+            QTRY_VERIFY_WITH_TIMEOUT(
+                !sessions.isEmpty() && !sessions.first().toMap().value("name").toString().isEmpty(),
+                5000);
+            id = sessions.first().toMap().value("id").toString();
+            originalPath = sessions.first().toMap().value("savePath").toString();
+            engine.setNetworkLimits(2, -3, 200000);
+            QTRY_COMPARE_WITH_TIMEOUT(findSession(sessions, id).value("connectionsLimit").toInt(),
+                                      20, 5000);
+            QCOMPARE(findSession(sessions, id).value("uploadLimitKiB").toInt(), 0);
+            QCOMPARE(findSession(sessions, id).value("downloadLimitKiB").toInt(), 102400);
+            engine.pause(id, true);
+            QVERIFY(awaitStop(engine));
+        }
+        bitfly::TorrentEngine restored(currentBase);
+        restored.setDiscovery(false, false, false);
+        restored.adoptStorageRoots({formerBase});
+        QVariantList sessions;
+        connect(&restored, &bitfly::TorrentEngine::sessionsChanged, this,
+                [&](const QVariantList& value) { sessions = value; });
+        restored.restore();
+        QTRY_VERIFY_WITH_TIMEOUT(!findSession(sessions, id).value("name").toString().isEmpty(),
+                                 5000);
+        QCOMPARE(findSession(sessions, id).value("savePath").toString(), originalPath);
+        QCOMPARE(findSession(sessions, id).value("state").toString(), QStringLiteral("paused"));
+        QVERIFY(!QFileInfo::exists(QDir(currentBase).filePath("torrents/" + id)));
+        QVERIFY(awaitStop(restored));
+    }
+
+    void storageRootChangesKeepOldRootsManagedForSafePurge() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const QString oldBase = temp.filePath("old");
+        const QString newBase = temp.filePath("new");
+        QVERIFY(QDir().mkpath(oldBase));
+        QVERIFY(QDir().mkpath(newBase));
+        bitfly::TorrentEngine engine(oldBase);
+        QSignalSpy errors(&engine, &bitfly::TorrentEngine::error);
+        engine.setStorageRoot(QDir(oldBase).filePath("torrents/nested"));
+        QCOMPARE(errors.count(), 1);
+        const QString id = QStringLiteral("4a2d996a-f169-4d02-b7f1-9ea2dc5fa111");
+        const QString oldDir = QDir(oldBase).filePath("torrents/" + id);
+        QVERIFY(QDir().mkpath(oldDir));
+        QFile oldMarker(QDir(oldDir).filePath(".retained"));
+        QVERIFY(oldMarker.open(QIODevice::WriteOnly));
+        QCOMPARE(oldMarker.write(id.toUtf8()), qint64(id.size()));
+        oldMarker.close();
+
+        engine.setStorageRoot(newBase);
+        engine.purge(id);
+        QVERIFY(!QFileInfo::exists(oldDir));
+
+        const QString unownedId = QStringLiteral("4a2d996a-f169-4d02-b7f1-9ea2dc5fa112");
+        const QString unownedDir = QDir(newBase).filePath("torrents/" + unownedId);
+        QVERIFY(QDir().mkpath(unownedDir));
+        QFile unrelated(QDir(unownedDir).filePath("keep.txt"));
+        QVERIFY(unrelated.open(QIODevice::WriteOnly));
+        QVERIFY(unrelated.write("keep") > 0);
+        unrelated.close();
+        engine.purge(unownedId);
+        QVERIFY(QFileInfo::exists(QDir(unownedDir).filePath("keep.txt")));
+        QVERIFY(awaitStop(engine));
+    }
+
     void realLibtorrentStreamsRangesAndRestores_data() {
         QTest::addColumn<QString>("mode");
         QTest::addColumn<QString>("fault");
@@ -318,6 +480,7 @@ class IntegrationTests final : public QObject {
         seedAlertTimer.start(25);
 
         auto engine = std::make_unique<bitfly::TorrentEngine>(cacheDir);
+        engine->setDiscovery(false, false, false);
         if (fault == "quota")
             engine->setCacheLimitBytes(0);
         QVariantList latestSessions;
@@ -325,6 +488,11 @@ class IntegrationTests final : public QObject {
                 [&](const QVariantList& value) { latestSessions = value; });
         QSignalSpy ready(engine.get(), &bitfly::TorrentEngine::streamReady);
         QVERIFY(ready.isValid());
+        QVariantMap stateAtReady;
+        connect(engine.get(), &bitfly::TorrentEngine::streamReady, this,
+                [&](const QString& sessionId, const QString&) {
+                    stateAtReady = findSession(latestSessions, sessionId);
+                });
         QSignalSpy engineErrors(engine.get(), &bitfly::TorrentEngine::error);
         QVERIFY(engineErrors.isValid());
         QSignalSpy engineDiagnostics(engine.get(), &bitfly::TorrentEngine::diagnostic);
@@ -368,6 +536,11 @@ class IntegrationTests final : public QObject {
             20000);
         const QString id = latestSessions.first().toMap().value("id").toString();
         QVERIFY(!id.isEmpty());
+        const QString sessionDir = QDir(cacheDir).filePath("torrents/" + id);
+        if (mode == "v1magnet" || mode == "v2")
+            QVERIFY(QFileInfo::exists(QDir(sessionDir).filePath(".magnet")));
+        else
+            QVERIFY(QFileInfo::exists(QDir(sessionDir).filePath(".torrent")));
         if (fault == "quota") {
             QTRY_VERIFY_WITH_TIMEOUT(
                 !findSession(latestSessions, id).value("error").toString().isEmpty(), 10000);
@@ -404,6 +577,20 @@ class IntegrationTests final : public QObject {
             QFAIL(qPrintable(diagnostic + QLatin1Char(' ') + seederState));
         }
         QCOMPARE(ready.first().at(0).toString(), id);
+        QCOMPARE(stateAtReady.value("selected").toInt(), 0);
+        QVERIFY(!stateAtReady.value("selectedName").toString().isEmpty());
+        QVERIFY(!stateAtReady.value("savePath").toString().isEmpty());
+        QCOMPARE(stateAtReady.value("uploadLimitKiB").toInt(), 64);
+        QCOMPARE(stateAtReady.value("downloadLimitKiB").toInt(), 0);
+        QVERIFY(stateAtReady.contains("uploaded"));
+        QVERIFY(stateAtReady.contains("uploadRate"));
+        if (mode == "v1" && fault.isEmpty()) {
+            const QString activePath = stateAtReady.value("savePath").toString();
+            const QString nextRoot = temp.filePath("next-cache");
+            QVERIFY(QDir().mkpath(nextRoot));
+            engine->setStorageRoot(nextRoot);
+            QCOMPARE(findSession(latestSessions, id).value("savePath").toString(), activePath);
+        }
         const QString streamId = ready.first().at(1).toString();
         QCOMPARE(streamId, id + "/0");
         const QVariantMap readyState = findSession(latestSessions, id);
@@ -568,10 +755,10 @@ class IntegrationTests final : public QObject {
         engine.reset();
 
         if (fault == "resume") {
-            const QString sessionDir = QDir(cacheDir).filePath("torrents/" + id);
             QFile resume(QDir(sessionDir).filePath(".fastresume"));
             QVERIFY(resume.size() > 0);
-            QVERIFY(QFileInfo::exists(QDir(sessionDir).filePath(".torrent")));
+            QVERIFY(QFileInfo::exists(
+                QDir(sessionDir).filePath(mode == "v2" ? ".magnet" : ".torrent")));
             QVERIFY(QFileInfo::exists(QDir(sessionDir).filePath("data/fixture.wav")));
             QVERIFY(resume.open(QIODevice::WriteOnly | QIODevice::Truncate));
             const QByteArray corrupt("not bencoded resume data");
@@ -580,6 +767,7 @@ class IntegrationTests final : public QObject {
         }
 
         auto restored = std::make_unique<bitfly::TorrentEngine>(cacheDir);
+        restored->setDiscovery(false, false, false);
         QVariantList restoredSessions;
         connect(restored.get(), &bitfly::TorrentEngine::sessionsChanged, this,
                 [&](const QVariantList& value) { restoredSessions = value; });
@@ -591,6 +779,7 @@ class IntegrationTests final : public QObject {
         QTRY_VERIFY_WITH_TIMEOUT(restoredReady.count() > 0, 60000);
         const auto restoredMap = findSession(restoredSessions, id);
         QCOMPARE(restoredMap.value("selected").toInt(), 0);
+        QVERIFY(restoredMap.value("magnet").toString().contains("&tr="));
         QTRY_VERIFY_WITH_TIMEOUT(
             findSession(restoredSessions, id).value("downloaded").toLongLong() > 0, 10000);
         auto restoredHttp = std::make_unique<bitfly::HttpServer>(restored.get());
@@ -604,6 +793,20 @@ class IntegrationTests final : public QObject {
             for (const auto& diagnostic : restoreDiagnostics)
                 fallbackObserved |= diagnostic.first().toString().contains("falling back");
             QVERIFY2(fallbackObserved, "Corrupt resume must use stored metadata, not stale state.");
+        }
+        if (mode == "v1" && fault.isEmpty()) {
+            QSignalSpy removed(restored.get(), &bitfly::TorrentEngine::removalFinished);
+            restored->remove(id, true);
+            QTRY_COMPARE_WITH_TIMEOUT(removed.count(), 1, 10000);
+            QVERIFY(removed.first().at(1).toBool());
+            QVERIFY(removed.first().at(2).toBool());
+            QVERIFY(!QFileInfo::exists(sessionDir));
+            restored->reopen(id, engineInput);
+            QTRY_VERIFY_WITH_TIMEOUT(
+                !findSession(restoredSessions, id).value("name").toString().isEmpty(), 10000);
+            QCOMPARE(
+                QDir::cleanPath(findSession(restoredSessions, id).value("savePath").toString()),
+                QDir::cleanPath(QDir(sessionDir).filePath("data")));
         }
         QVERIFY(awaitStop(*restored));
     }

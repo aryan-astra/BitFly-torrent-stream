@@ -1,6 +1,7 @@
 # Testing
 
-Build with `BUILD_TESTING=ON` (the default). CTest registers six suites:
+Build with `BUILD_TESTING=ON` (the default). CTest registers eleven default groups, plus the installed-VLC preview group
+when configured with `-DBITFLY_TEST_INSTALLED_VLC=ON`:
 
 | Test | What it covers |
 | --- | --- |
@@ -9,7 +10,11 @@ Build with `BUILD_TESTING=ON` (the default). CTest registers six suites:
 | `app` | Version parsing and transactional SQLite persistence, including future-schema refusal |
 | `integration` | Real libtorrent sessions against a local throttled seeder, with optional VLC decode |
 | `recovery` | Corrupt v1/v2 resume fallback and cache-quota admission/recovery |
-| `qml_smoke` | Headless load and interaction checks for the actual `Main.qml` |
+| `qml_smoke`, `qml_search`, `qml_large_library` | Real QML, keyboard/help/selection/morph, search forwarding and virtualized 1000-entry shelf |
+| `lifecycle` | Stable-ID reopen, original-root restore, safe retained purge |
+| `services` | Torznab, API/redirect limits, update digests/tampering, CLI allowlist |
+| `controller` | Library retention, owned/custom artwork, protected keys, settings and folder acknowledgement |
+| `previews` (opt-in) | Installed VLC decodes a generated AVI through HTTP; cancellation and artwork preservation |
 
 ```powershell
 ctest --test-dir build --output-on-failure

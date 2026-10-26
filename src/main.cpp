@@ -16,7 +16,7 @@
 int main(int argc, char** argv) {
     QElapsedTimer startup;
     startup.start();
-    // This static interface uses less memory without allocating a GPU render context.
+    // Raster artwork and short transitions use the existing software render path.
     QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
     QGuiApplication application(argc, argv);
     QQuickStyle::setStyle("Basic");
@@ -25,14 +25,17 @@ int main(int argc, char** argv) {
     application.setApplicationVersion(BITFLY_VERSION);
     application.setWindowIcon(QIcon(":/branding/BitFly.ico"));
     application.setFont(QFont("Segoe UI", 10));
-    bitfly::ApplicationController controller;
+    const auto args = application.arguments();
+    const int diagnostic = args.indexOf("--diagnostic-data-dir");
+    const QString diagnosticDirectory =
+        diagnostic >= 0 && diagnostic + 1 < args.size() ? args[diagnostic + 1] : QString();
+    bitfly::ApplicationController controller(nullptr, diagnosticDirectory);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("app", &controller);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule("BitFly", "Main");
-    const auto args = application.arguments();
     const int probe = args.indexOf("--startup-probe");
     if (probe >= 0 && probe + 1 < args.size() && !engine.rootObjects().isEmpty()) {
         auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().first());

@@ -1,0 +1,11 @@
+Test project <workspace>/build
+    Start 10: qml_smoke
+1/3 Test #10: qml_smoke ........................   Passed    2.03 sec
+    Start 11: qml_search
+2/3 Test #11: qml_search .......................   Passed    2.09 sec
+    Start 12: qml_large_library
+3/3 Test #12: qml_large_library ................   Passed    2.34 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   6.54 sec

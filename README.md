@@ -6,14 +6,16 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
 BitFly is a native Windows application for streaming torrent video in your
-installed [VLC Media Player](https://www.videolan.org/vlc/). Open a magnet link or
-a `.torrent` file, choose a media file, and VLC plays it from a local
+installed external player (VLC by default; mpv and MPC-HC/BE are supported).
+Open a magnet link or a `.torrent` file, choose a media file, and the player reads a local
 token-protected HTTP stream while libtorrent fetches the pieces that playback
 needs.
 
 ![BitFly running on Windows 11 x64](docs/screenshots/windows-x64.png)
 
-> **Development preview.** `v0.1.0-preview.1` is published for evaluation, not as
+> **Local v1 candidate.** This working tree prepares version 1.0.0 with the new
+> library, white cloud interface, search and update controls. It has not been
+> pushed or published. The downloads below remain `v0.1.0-preview.1`, for evaluation, not as
 > a stable or production-certified release. The binaries are not Authenticode
 > signed, so Windows may show a publisher warning. See
 > [validation status](docs/STATUS.md) for executed checks, evidence, and the
@@ -45,32 +47,33 @@ Get-Content .\BitFly-0.1.0-windows-x64-SHA256SUMS.txt
 - Windows 10 version 1809 or later (x64), Windows 11 (x64), or Windows 11 on
   ARM64. Windows 11 x64 is the validated development host; the other targets
   have the validation gaps recorded in [STATUS.md](docs/STATUS.md).
-- [VLC Media Player](https://www.videolan.org/vlc/) 3.x for the matching
-  architecture. VLC is **required** and is not bundled, downloaded, or installed
-  by BitFly. BitFly detects `vlc.exe`; you can select it manually in Settings.
-- Media you are authorized to access and share. BitFly has no search service,
-  content catalog, or DRM circumvention.
+- An installed VLC 3.x, mpv or MPC-HC/BE player. Choose its executable in
+  Settings. VLC is additionally needed for optional frame previews. Players
+  are not bundled or automatically installed.
+- Media you are authorized to access and share. Optional search connects to
+  your configured Jackett/Prowlarr Torznab feed. BitFly supplies no catalog
+  or DRM circumvention.
 
 ## Use
 
 1. Install or unpack BitFly, then start it. If VLC is not detected, choose
-   `vlc.exe` in **Settings**.
-2. Paste a magnet link on the **Stream** page, or choose **Open torrent file**.
+   a supported player in **Settings**.
+2. Paste a magnet link on the **Library** page, or choose **Open .torrent**.
 3. Select a playable file and press **Play**. *Preparing* means BitFly is still
    retrieving the pieces needed to start. VLC opens once the initial verified
    range is available.
 4. Playback continues while BitFly downloads ahead of VLC's requests. Seeking
    changes the requested byte ranges and reprioritizes pieces.
 
-Use **Queue** to line up files for the next VLC session and **History** to relaunch
-a previous stream. Queue and history survive a restart. State is saved
+Use **Queue** to line up files for the next VLC session and **Library** to relaunch
+a previous stream from its saved magnet and selection. Queue and library survive a restart. State is saved
 transactionally, and torrent resume data is reused where available; playback
 always requires an explicit launch.
 
 When an owned VLC window closes, BitFly asks whether to **Keep** the data,
 **Delete** it, or **Seed** temporarily. Keeping data pauses network activity;
-deleting requires confirmation and affects only that managed cache entry; the
-default seeding period is 15 minutes and is configurable in Settings.
+deleting requires confirmation and affects only that managed cache entry; further seeding
+requires an explicit choice and has a configurable duration (default 0).
 
 ## Features
 
@@ -80,14 +83,18 @@ default seeding period is 15 minutes and is configurable in Settings.
 - A loopback HTTP server with an unpredictable per-session token, strict host
   validation, and no filesystem paths in URLs.
 - Playable-file selection, multiple sessions, pausing, and removal.
-- Persistent queue, recent history, preferences, and libtorrent resume state in
+- Persistent queue, media library/artwork, preferences, and libtorrent resume state in
   local SQLite storage.
 - Cache quota admission, bounded temporary seeding, retained data, and
   user-confirmed deletion of managed data.
-- Native C++20 and Qt Quick interface. The static UI uses Qt's software scene
-  graph: about 130 MiB peak working set and a 718 ms median first frame on the
-  recorded x64 host.
-- No telemetry, account, cloud backend, or automatic binary updates.
+- Native C++20/Qt Quick white interface, 3D sidebar icons, short cover/hover
+  transitions, reduced motion and a virtualized library.
+- Custom artwork and optional bounded frame previews through installed VLC.
+- Selectable storage folder, supported network/discovery limits, and optional
+  Torznab search with Windows-account-protected API keys.
+- Installed Cloudflare client controls; no bundled VPN or automatic network changes.
+- Stable update checks on each launch, background size/hash-verified downloads,
+  and an explicit install action. No telemetry or BitFly account.
 
 ## How it works
 
@@ -113,7 +120,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
   -DBITFLY_LIBTORRENT_SOURCE=C:/deps/libtorrent `
   -DBITFLY_BOOST_ROOT=C:/deps/boost_1_86_0 `
   -DOPENSSL_ROOT_DIR=C:/deps/openssl
-cmake --build build --parallel 4
+cmake --build build --parallel 1
 ctest --test-dir build --output-on-failure
 ```
 
@@ -125,13 +132,13 @@ swarm.
 
 ## Status and limitations
 
-This preview is honest about what has and has not been proven:
+The new candidate and older public preview have separate validation records:
 
 - Local x64 validation includes real-torrent streaming in v1, v1-magnet,
   v2-magnet, and hybrid modes, verified HTTP ranges, restart/resume, and audio
   decoded through the actual tokenized HTTP URL by external VLC.
-- x64 and ARM64 builds, packaging, PE architecture checks, installers, and
-  first-frame smoke tests pass in CI.
+- The prior preview passed native x64/ARM64 CI packaging and startup. Those
+  runs do not validate this unpushed v1 source; fresh release CI remains a gate.
 - Physical Windows 11 ARM64 VLC playback, physical Windows 10 testing, sustained
   concurrent playback, disk-full/crash fault injection, screen-reader review,
   and controlled cold-start benchmarks remain outstanding.
@@ -139,9 +146,10 @@ This preview is honest about what has and has not been proven:
   public swarm at scale.
 - Binaries are unsigned and have no stable security-maintenance commitment yet.
 - Exact VLC playback position is not tracked or restored. BitFly does not bundle
-  a player, index torrents, find subtitles, or bypass DRM.
-- The in-app update check consults GitHub's latest **stable** release, so it
-  deliberately ignores this prerelease.
+  a player, indexer, or Cloudflare client, find subtitles, or bypass DRM.
+- Updates use GitHub's latest **stable** release and ignore prereleases.
+  Integrity trusts the official HTTPS API digest; no independent publisher
+  signing identity or silent unattended install is implied.
 
 The authoritative evidence and release gates are in [docs/STATUS.md](docs/STATUS.md).
 Do not treat a screenshot or a successful launch as proof of a platform or

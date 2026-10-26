@@ -3,7 +3,66 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QSettings>
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#include <wincrypt.h>
+#endif
 namespace bitfly {
+bool prefersReducedMotion() {
+#ifdef Q_OS_WIN
+    BOOL enabled = TRUE;
+    if (SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &enabled, 0))
+        return !enabled;
+#endif
+    return false;
+}
+bool validPlayer(const QString& path) {
+    const QFileInfo file(path);
+    const QStringList supported = {"vlc.exe",      "mpv.exe",    "mpc-hc.exe",
+                                   "mpc-hc64.exe", "mpc-be.exe", "mpc-be64.exe"};
+    return file.isAbsolute() && file.isFile() &&
+           supported.contains(file.fileName(), Qt::CaseInsensitive);
+}
+QStringList playerArguments(const QString& path, const QUrl& url) {
+    const auto name = QFileInfo(path).fileName().toLower();
+    if (name == "vlc.exe")
+        return {"--no-one-instance", "--play-and-exit", url.toString(QUrl::FullyEncoded)};
+    if (name == "mpv.exe")
+        return {"--force-window=yes", "--keep-open=no", "--", url.toString(QUrl::FullyEncoded)};
+    return {"/new", "/close", url.toString(QUrl::FullyEncoded)};
+}
+QByteArray protectSecret(const QString& secret) {
+    if (secret.isEmpty())
+        return {};
+#ifdef Q_OS_WIN
+    auto bytes = secret.toUtf8();
+    DATA_BLOB input{DWORD(bytes.size()), reinterpret_cast<BYTE*>(bytes.data())}, output{};
+    if (!CryptProtectData(&input, L"BitFly indexer key", nullptr, nullptr, nullptr,
+                          CRYPTPROTECT_UI_FORBIDDEN, &output))
+        return {};
+    const QByteArray protectedBytes(reinterpret_cast<char*>(output.pbData), output.cbData);
+    LocalFree(output.pbData);
+    return protectedBytes;
+#else
+    return {};
+#endif
+}
+QString unprotectSecret(const QByteArray& secret) {
+#ifdef Q_OS_WIN
+    DATA_BLOB input{DWORD(secret.size()),
+                    reinterpret_cast<BYTE*>(const_cast<char*>(secret.constData()))},
+        output{};
+    if (secret.isEmpty() || !CryptUnprotectData(&input, nullptr, nullptr, nullptr, nullptr,
+                                                CRYPTPROTECT_UI_FORBIDDEN, &output))
+        return {};
+    const QString value = QString::fromUtf8(reinterpret_cast<char*>(output.pbData), output.cbData);
+    SecureZeroMemory(output.pbData, output.cbData);
+    LocalFree(output.pbData);
+    return value;
+#else
+    return {};
+#endif
+}
 bool validVlc(const QString& path) {
     QFileInfo f(path);
     return f.isAbsolute() && f.isFile() &&

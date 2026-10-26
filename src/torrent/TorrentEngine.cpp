@@ -13,6 +13,7 @@
 #include <QUuid>
 #include <algorithm>
 #include <cstdint>
+#include <exception>
 #include <limits>
 
 #include <libtorrent/add_torrent_params.hpp>
@@ -44,6 +45,30 @@ constexpr int MaxTorrentFiles = 10000;
 constexpr int MaxTorrentPieces = 2000000;
 constexpr int MaxPieceBytes = 16 * 1024 * 1024;
 constexpr int MaxSessions = 256;
+constexpr int MaxStreamWindowPieces = 4096;
+
+lt::settings_pack tunedSettings(int connections, int uploadKiB, int downloadKiB, bool dht, bool lsd,
+                                bool portMapping) {
+    lt::settings_pack settings;
+    // Only the categories poll() actually consumes. read_piece and resume-data alerts are
+    // "storage"; metadata and torrent updates are "status"; piece_finished is
+    // "piece_progress"; peer_blocked is "ip_block". file_progress is not consumed.
+    const lt::alert_category_t alerts =
+        lt::alert_category::error | lt::alert_category::storage | lt::alert_category::status |
+        lt::alert_category::peer | lt::alert_category::piece_progress |
+        lt::alert_category::tracker | lt::alert_category::connect | lt::alert_category::ip_block;
+    settings.set_int(lt::settings_pack::alert_mask,
+                     static_cast<int>(static_cast<std::uint32_t>(alerts)));
+    settings.set_int(lt::settings_pack::connections_limit, std::clamp(connections, 20, 1000));
+    settings.set_int(lt::settings_pack::upload_rate_limit, std::clamp(uploadKiB, 0, 102400) * 1024);
+    settings.set_int(lt::settings_pack::download_rate_limit,
+                     std::clamp(downloadKiB, 0, 102400) * 1024);
+    settings.set_bool(lt::settings_pack::enable_dht, dht);
+    settings.set_bool(lt::settings_pack::enable_lsd, lsd);
+    settings.set_bool(lt::settings_pack::enable_upnp, portMapping);
+    settings.set_bool(lt::settings_pack::enable_natpmp, portMapping);
+    return settings;
+}
 
 bool playable(const QString& name) {
     static const QStringList extensions = {
@@ -115,21 +140,32 @@ bool isLinkOrReparsePoint(const QFileInfo& info) {
     return info.isSymLink();
 #endif
 }
-} // namespace
 
-struct TorrentEngine::Torrent {
-    QString id, dir, input, name, error;
-    lt::torrent_handle handle;
-    int selected = -1, requestedFile = -1;
-    qint64 lastDemandMs = -1, metadataStartedMs = -1;
-    bool metadataChecked = false, userPaused = false, streamReadyEmitted = false;
-    QSet<int> demandedPieces, readPending;
-};
+bool retainedMarkerMatches(const QString& dir, const QString& id) {
+    const QString path = QDir(dir).filePath(".retained");
+    const QFileInfo info(path);
+    if (!info.isFile() || isLinkOrReparsePoint(info) || info.size() > 64)
+        return false;
+    QFile marker(path);
+    return marker.open(QIODevice::ReadOnly) && QString::fromUtf8(marker.readAll()).trimmed() == id;
+}
 
-TorrentEngine::TorrentEngine(QString cacheRoot, QObject* parent)
-    : QObject(parent), m_root(QDir(cacheRoot).filePath("torrents")) {
-    QDir().mkpath(m_root);
-    const QFileInfo rootInfo(m_root);
+// Resolves a user-selected base folder to a canonical app-owned `torrents` folder.
+// Rejecting links and reparse points keeps a redirected folder from silently moving
+// managed data outside the quota and cleanup boundary.
+QString canonicalManagedRoot(const QString& cacheRoot, QString* error) {
+    if (cacheRoot.trimmed().isEmpty()) {
+        if (error)
+            *error = "Choose a download folder.";
+        return {};
+    }
+    const QString rootPath = QDir(cacheRoot).filePath("torrents");
+    if (!QDir().mkpath(rootPath)) {
+        if (error)
+            *error = "BitFly could not create the download folder.";
+        return {};
+    }
+    const QFileInfo rootInfo(rootPath);
     const QString canonicalRoot = rootInfo.canonicalFilePath();
     const QString absoluteRoot = QDir::cleanPath(rootInfo.absoluteFilePath());
     const bool pathChanged = QString::compare(absoluteRoot, QDir::cleanPath(canonicalRoot),
@@ -140,27 +176,48 @@ TorrentEngine::TorrentEngine(QString cacheRoot, QObject* parent)
 #endif
                                               ) != 0;
     if (isLinkOrReparsePoint(rootInfo) || canonicalRoot.isEmpty() || pathChanged) {
-        m_root.clear();
-        QTimer::singleShot(0, this, [this] {
-            emit error("The managed torrent cache directory is unavailable or is a symbolic link.");
-        });
+        if (error)
+            *error = "The download folder is unavailable or is a symbolic link.";
+        return {};
+    }
+    return canonicalRoot;
+}
+
+bool nestedManagedRoots(QString first, QString second) {
+    first = QDir::cleanPath(first);
+    second = QDir::cleanPath(second);
+#ifdef Q_OS_WIN
+    first = first.toCaseFolded();
+    second = second.toCaseFolded();
+#endif
+    return first != second && (first.startsWith(second + '/') || second.startsWith(first + '/'));
+}
+} // namespace
+
+struct TorrentEngine::Torrent {
+    QString id, dir, input, name, error;
+    // The magnet link handed to the UI is stable once metadata is known. Caching
+    // it keeps publish() from rebuilding a multi-kilobyte string on every tick.
+    QString magnet;
+    lt::torrent_handle handle;
+    int selected = -1, requestedFile = -1;
+    qint64 lastDemandMs = -1, metadataStartedMs = -1, lastWindowOffset = 0;
+    bool metadataChecked = false, userPaused = false, streamReadyEmitted = false;
+    bool reusedRetained = false;
+    bool addPending = true, deleteDataOnRemove = false;
+    QSet<int> demandedPieces, readWanted, readPending;
+};
+
+TorrentEngine::TorrentEngine(QString cacheRoot, QObject* parent) : QObject(parent) {
+    QString rootError;
+    m_root = canonicalManagedRoot(cacheRoot, &rootError);
+    if (m_root.isEmpty()) {
+        QTimer::singleShot(0, this, [this, rootError] { emit error(rootError); });
         return;
     }
-    m_root = canonicalRoot;
-    lt::settings_pack settings;
-    const lt::alert_category_t alerts =
-        lt::alert_category::error | lt::alert_category::storage | lt::alert_category::status |
-        lt::alert_category::file_progress | lt::alert_category::peer |
-        lt::alert_category::piece_progress | lt::alert_category::tracker |
-        lt::alert_category::connect | lt::alert_category::ip_block;
-    settings.set_int(lt::settings_pack::alert_mask,
-                     static_cast<int>(static_cast<std::uint32_t>(alerts)));
-    settings.set_bool(lt::settings_pack::enable_dht, true);
-    settings.set_bool(lt::settings_pack::enable_lsd, true);
-    settings.set_bool(lt::settings_pack::enable_upnp, false);
-    settings.set_bool(lt::settings_pack::enable_natpmp, false);
-    settings.set_int(lt::settings_pack::connections_limit, 120);
-    m_session = std::make_unique<lt::session>(settings);
+    m_session = std::make_unique<lt::session>(tunedSettings(m_connectionsLimit, m_uploadLimitKiB,
+                                                            m_downloadLimitKiB, m_dhtEnabled,
+                                                            m_lsdEnabled, m_portMappingEnabled));
     m_uptime.start();
     m_lastDiskScan.invalidate();
     m_pollTimer.setInterval(50);
@@ -176,10 +233,73 @@ TorrentEngine::~TorrentEngine() {
     if (m_session)
         m_session->abort();
     qDeleteAll(m_torrents);
+    qDeleteAll(m_removing);
 }
 
 QString TorrentEngine::torrentDir(const QString& id) const {
     return QDir(m_root).filePath(id);
+}
+
+QStringList TorrentEngine::managedRoots() const {
+    QStringList roots;
+    if (!m_root.isEmpty())
+        roots.append(m_root);
+    for (const QString& extra : m_extraRoots)
+        if (!extra.isEmpty() && !roots.contains(extra))
+            roots.append(extra);
+    return roots;
+}
+
+QString TorrentEngine::managedRootFor(const QString& dir) const {
+    const QFileInfo info(dir);
+    if (!info.isDir() || isLinkOrReparsePoint(info))
+        return {};
+    const QString canonical = info.canonicalFilePath();
+    if (canonical.isEmpty())
+        return {};
+    for (const QString& root : managedRoots()) {
+        const QFileInfo rootInfo(root);
+        if (!rootInfo.isDir() || isLinkOrReparsePoint(rootInfo))
+            continue;
+        const QString canonicalRoot = rootInfo.canonicalFilePath();
+#ifdef Q_OS_WIN
+        const bool matches =
+            QString::compare(QDir::cleanPath(QFileInfo(canonical).absolutePath()),
+                             QDir::cleanPath(canonicalRoot), Qt::CaseInsensitive) == 0;
+#else
+        const bool matches =
+            QDir::cleanPath(QFileInfo(canonical).absolutePath()) == QDir::cleanPath(canonicalRoot);
+#endif
+        if (matches)
+            return canonicalRoot;
+    }
+    return {};
+}
+
+qint64 TorrentEngine::managedFreeBytes() const {
+    qint64 free = std::numeric_limits<qint64>::max();
+    bool found = false;
+    QSet<QString> activeRoots{m_root};
+    for (const auto* t : m_torrents)
+        activeRoots.insert(managedRootFor(t->dir));
+    // Retained files on an old drive count toward the quota, but cannot consume
+    // free space reserved for a new download on another drive.
+    for (const QString& root : activeRoots) {
+        if (root.isEmpty())
+            continue;
+        QStorageInfo storage(root);
+        storage.refresh();
+        if (!storage.isValid() || !storage.isReady())
+            continue;
+        found = true;
+        free = std::min(free, storage.bytesAvailable());
+    }
+    if (!found) {
+        QStorageInfo storage(m_root);
+        storage.refresh();
+        return storage.isValid() ? storage.bytesAvailable() : 0;
+    }
+    return std::max<qint64>(0, free);
 }
 
 void TorrentEngine::add(QString input) {
@@ -202,31 +322,69 @@ void TorrentEngine::add(QString input) {
     addTorrent(id, input);
 }
 
-void TorrentEngine::addTorrent(const QString& id, const QString& input, bool restoring) {
+void TorrentEngine::reopen(QString sessionId, QString input) {
+    input = input.trimmed();
+    if (m_stopping || !m_session || !isUuid(sessionId) || input.isEmpty() || input.size() > 16384) {
+        emit error("This library entry cannot be reopened right now.");
+        return;
+    }
+    if (m_torrents.contains(sessionId)) {
+        emit error("This torrent is already active.");
+        return;
+    }
+    if (m_removing.contains(sessionId)) {
+        emit error("This torrent is still being removed. Try Stream again after cleanup finishes.");
+        return;
+    }
+    if (m_torrents.size() >= MaxSessions) {
+        emit error("The maximum number of active torrent sessions has been reached.");
+        return;
+    }
+    QString retainedDir;
+    for (const QString& root : managedRoots()) {
+        const QString candidate = QDir(root).filePath(sessionId);
+        const QFileInfo info(candidate);
+        if (info.isDir() && !isLinkOrReparsePoint(info) && info.fileName() == sessionId &&
+            retainedMarkerMatches(candidate, sessionId) && !managedRootFor(candidate).isEmpty()) {
+            retainedDir = candidate;
+            break;
+        }
+    }
+    addTorrent(sessionId, input, !retainedDir.isEmpty(), retainedDir, true);
+}
+
+void TorrentEngine::addTorrent(const QString& id, const QString& input, bool restoring,
+                               const QString& existingDir, bool notifyAdded) {
     if (!isUuid(id) || input.isEmpty() || m_torrents.contains(id) ||
         m_torrents.size() >= MaxSessions)
         return;
     lt::add_torrent_params params;
-    const QString dir = torrentDir(id);
-    if (restoring && !hasOwnershipMarker(dir, id))
+    const QString dir = existingDir.isEmpty() ? torrentDir(id) : QDir::cleanPath(existingDir);
+    const bool retained = !existingDir.isEmpty() && retainedMarkerMatches(dir, id);
+    if (!existingDir.isEmpty() &&
+        (managedRootFor(dir).isEmpty() || (!retained && !hasOwnershipMarker(dir, id)))) {
+        emit error("The retained torrent folder is no longer safe to reopen.");
         return;
-    if (!restoring && QFileInfo::exists(dir)) {
+    }
+    if (restoring && !retained && !hasOwnershipMarker(dir, id))
+        return;
+    if (!restoring && !retained && QFileInfo::exists(dir)) {
         emit error("Generated torrent storage ID already exists; refusing to reuse it.");
         return;
     }
-    if (!QDir().mkpath(dir)) {
+    if (!retained && !QDir().mkpath(dir)) {
         emit error("Could not create managed torrent storage.");
         return;
     }
-    if (!restoring)
+    if (!restoring && !retained)
         writeAtomic(QDir(dir).filePath(".bitfly-session"), id.toUtf8());
-    if (!hasOwnershipMarker(dir, id)) {
+    if (!hasOwnershipMarker(dir, id) && !retainedMarkerMatches(dir, id)) {
         emit error("Could not mark managed torrent storage as app-owned.");
         return;
     }
     const QString dataDir = QDir(dir).filePath("data");
     QDir().mkpath(dataDir);
-    const QString canonicalRoot = QFileInfo(m_root).canonicalFilePath();
+    const QString canonicalRoot = managedRootFor(dir);
     const QString canonicalData = QFileInfo(dataDir).canonicalFilePath();
     const QString relativeData = QDir(canonicalRoot).relativeFilePath(canonicalData);
     if (isLinkOrReparsePoint(QFileInfo(dir)) || isLinkOrReparsePoint(QFileInfo(dataDir)) ||
@@ -245,13 +403,14 @@ void TorrentEngine::addTorrent(const QString& id, const QString& input, bool res
         params.flags |= lt::torrent_flags::default_dont_download;
     params.storage_mode = lt::storage_mode_sparse;
     bool hadResume = false;
-    if (magnetInput) {
+    if (magnetInput && !restoring) {
         lt::error_code ec;
         lt::parse_magnet_uri(input.toStdString(), params, ec);
         if (ec) {
             emit error(QString::fromStdString(ec.message()));
             return;
         }
+        writeAtomic(QDir(dir).filePath(".magnet"), input.toUtf8());
     } else if (restoring) {
         params.flags |= lt::torrent_flags::paused | lt::torrent_flags::default_dont_download;
         bool resumeLoaded = false;
@@ -277,12 +436,27 @@ void TorrentEngine::addTorrent(const QString& id, const QString& input, bool res
                                            "stored torrent metadata."));
             const QString torrentFile = QDir(dir).filePath(".torrent");
             QFile file(torrentFile);
-            if (!file.open(QIODevice::ReadOnly) || file.size() > MaxTorrentBytes)
-                return;
-            try {
-                params = lt::load_torrent_file(torrentFile.toStdString());
-            } catch (const lt::system_error&) {
-                return;
+            if (file.open(QIODevice::ReadOnly) && file.size() > 0 &&
+                file.size() <= MaxTorrentBytes) {
+                try {
+                    params = lt::load_torrent_file(torrentFile.toStdString());
+                } catch (const lt::system_error&) {
+                    return;
+                }
+            } else {
+                QFile magnetFile(QDir(dir).filePath(".magnet"));
+                QString magnet;
+                if (magnetFile.open(QIODevice::ReadOnly) && magnetFile.size() > 0 &&
+                    magnetFile.size() <= 16384)
+                    magnet = QString::fromUtf8(magnetFile.readAll()).trimmed();
+                else if (input.startsWith("magnet:", Qt::CaseInsensitive))
+                    magnet = input;
+                if (!magnet.startsWith("magnet:", Qt::CaseInsensitive))
+                    return;
+                lt::error_code ec;
+                lt::parse_magnet_uri(magnet.toStdString(), params, ec);
+                if (ec)
+                    return;
             }
             params.save_path = QDir::toNativeSeparators(dataDir).toStdString();
             params.flags |= lt::torrent_flags::default_dont_download | lt::torrent_flags::paused;
@@ -307,20 +481,27 @@ void TorrentEngine::addTorrent(const QString& id, const QString& input, bool res
             writeAtomic(QDir(dir).filePath(".torrent"), source.read(MaxTorrentBytes + 1));
     }
 
-    if (!magnetInput)
-        params.flags |= lt::torrent_flags::default_dont_download;
+    const bool resumeWasPaused =
+        restoring && hadResume && static_cast<bool>(params.flags & lt::torrent_flags::paused);
+    const bool needsMetadata = !params.ti;
     params.flags &= ~lt::torrent_flags::auto_managed;
     params.flags |= lt::torrent_flags::duplicate_is_error;
-    if (magnetInput)
-        params.flags &= ~lt::torrent_flags::paused;
-    else if (!restoring || !hadResume)
-        params.flags |= lt::torrent_flags::paused;
+    if (needsMetadata) {
+        // A restored magnet must be able to reacquire metadata before selecting a file.
+        params.flags &= ~lt::torrent_flags::default_dont_download;
+        if (!resumeWasPaused || notifyAdded)
+            params.flags &= ~lt::torrent_flags::paused;
+    } else {
+        params.flags |= lt::torrent_flags::default_dont_download;
+        if (!restoring || !hadResume)
+            params.flags |= lt::torrent_flags::paused;
+    }
     auto* t = new Torrent;
     t->id = id;
     t->dir = dir;
     t->input = input;
-    t->userPaused =
-        restoring && hadResume && static_cast<bool>(params.flags & lt::torrent_flags::paused);
+    t->reusedRetained = retained;
+    t->userPaused = resumeWasPaused && !notifyAdded;
     if (restoring && params.ti) {
         for (int i = 0;
              i < int(params.file_priorities.size()) && i < params.ti->files().num_files(); ++i) {
@@ -335,21 +516,28 @@ void TorrentEngine::addTorrent(const QString& id, const QString& input, bool res
     params.userdata = t;
     m_torrents.insert(id, t);
     m_session->async_add_torrent(std::move(params));
+    if (!restoring || notifyAdded)
+        emit sessionAdded(id, input);
     publish();
 }
 
 void TorrentEngine::restore() {
-    if (!m_session || m_root.isEmpty())
+    if (!m_session)
         return;
-    QDirIterator it(m_root, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::NoIteratorFlags);
-    while (it.hasNext()) {
-        const QString path = it.next();
-        const QFileInfo info(path);
-        const QString id = info.fileName();
-        if (isLinkOrReparsePoint(info) || !isUuid(id) ||
-            QFileInfo(QDir(path).filePath(".retained")).exists() || !hasOwnershipMarker(path, id))
+    for (const QString& root : managedRoots()) {
+        if (!QFileInfo(root).isDir())
             continue;
-        addTorrent(id, "restore", true);
+        QDirIterator it(root, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::NoIteratorFlags);
+        while (it.hasNext()) {
+            const QString path = it.next();
+            const QFileInfo info(path);
+            const QString id = info.fileName();
+            if (isLinkOrReparsePoint(info) || !isUuid(id) || m_torrents.contains(id) ||
+                QFileInfo(QDir(path).filePath(".retained")).exists() ||
+                !hasOwnershipMarker(path, id))
+                continue;
+            addTorrent(id, "restore", true, path);
+        }
     }
 }
 
@@ -385,6 +573,23 @@ bool TorrentEngine::validateMetadata(Torrent& t) {
         foldedPaths.insert(folded);
     }
     t.name = QString::fromStdString(ti->name());
+    if (t.input.startsWith("magnet:", Qt::CaseInsensitive)) {
+        t.magnet = t.input;
+    } else {
+        try {
+            t.magnet = QString::fromStdString(lt::make_magnet_uri(t.handle));
+        } catch (const std::exception&) {
+            t.magnet.clear();
+        }
+    }
+    if (!t.magnet.isEmpty())
+        writeAtomic(QDir(t.dir).filePath(".magnet"), t.magnet.toUtf8());
+    if (t.reusedRetained && writeAtomic(QDir(t.dir).filePath(".bitfly-session"), t.id.toUtf8())) {
+        if (QFile::remove(QDir(t.dir).filePath(".retained")))
+            t.reusedRetained = false;
+        else
+            QFile::remove(QDir(t.dir).filePath(".bitfly-session"));
+    }
     t.metadataChecked = true;
     configureFiles(t);
     try {
@@ -401,7 +606,7 @@ void TorrentEngine::configureFiles(Torrent& t) {
     const auto ti = t.handle.torrent_file();
     if (!ti)
         return;
-    if (t.selected < 0 && t.requestedFile >= 0) {
+    if (t.requestedFile >= 0) {
         if (t.requestedFile >= ti->files().num_files() ||
             !playable(
                 QString::fromStdString(ti->files().file_path(lt::file_index_t(t.requestedFile))))) {
@@ -411,6 +616,7 @@ void TorrentEngine::configureFiles(Torrent& t) {
             return;
         }
         t.selected = t.requestedFile;
+        t.requestedFile = -1;
     }
     if (t.selected < 0) {
         QList<int> candidates;
@@ -478,9 +684,7 @@ bool TorrentEngine::selectedFilesFit(const Torrent& changed, int changedIndex) c
         remaining += size - done;
     }
     const qint64 quotaFree = std::max<qint64>(0, m_diskQuotaLimit - m_diskUsage);
-    QStorageInfo storage(m_root);
-    storage.refresh();
-    const qint64 diskFree = std::max<qint64>(0, storage.bytesAvailable() - LowDiskFreeBytes);
+    const qint64 diskFree = std::max<qint64>(0, managedFreeBytes() - LowDiskFreeBytes);
     return remaining <= std::min(quotaFree, diskFree);
 }
 
@@ -490,6 +694,9 @@ void TorrentEngine::select(QString sessionId, int fileIndex) {
         return;
     if (!t->metadataChecked) {
         t->requestedFile = fileIndex;
+        t->userPaused = false;
+        if (t->handle.is_valid())
+            t->handle.resume();
         return;
     }
     const auto ti = t->handle.torrent_file();
@@ -504,9 +711,7 @@ void TorrentEngine::select(QString sessionId, int fileIndex) {
         emit error("Selected media does not fit within the remaining cache quota or disk space.");
         return;
     }
-    for (int piece : t->demandedPieces)
-        t->handle.reset_piece_deadline(lt::piece_index_t(piece));
-    t->demandedPieces.clear();
+    resetStreamWindow(*t);
     t->streamReadyEmitted = false;
     t->selected = fileIndex;
     t->userPaused = false;
@@ -517,7 +722,10 @@ void TorrentEngine::select(QString sessionId, int fileIndex) {
 void TorrentEngine::pause(QString sessionId, bool paused) {
     if (auto* t = m_torrents.value(sessionId, nullptr); t && t->handle.is_valid()) {
         t->userPaused = paused;
-        if (paused || m_storagePressure || !t->error.isEmpty())
+        if (paused) {
+            resetStreamWindow(*t);
+            t->handle.pause();
+        } else if (m_storagePressure || !t->error.isEmpty())
             t->handle.pause();
         else
             t->handle.resume();
@@ -528,10 +736,10 @@ void TorrentEngine::remove(QString sessionId, bool deleteData) {
     auto* t = m_torrents.take(sessionId);
     if (!t)
         return;
+    resetStreamWindow(*t);
     const bool hasHandle = m_session && t->handle.is_valid();
-    if (hasHandle)
-        m_session->remove_torrent(t->handle,
-                                  deleteData ? lt::session::delete_files : lt::remove_flags_t{});
+    t->deleteDataOnRemove = deleteData;
+    m_removing.insert(sessionId, t);
     for (auto it = m_cache.begin(); it != m_cache.end();) {
         if (it.key().startsWith(sessionId + ':')) {
             m_cacheBytes -= it->bytes.size();
@@ -542,30 +750,44 @@ void TorrentEngine::remove(QString sessionId, bool deleteData) {
     }
     if (isUuid(sessionId)) {
         const QFileInfo dirInfo(t->dir);
-        const QString root = QFileInfo(m_root).canonicalFilePath();
-        const QString canonicalDir = dirInfo.canonicalFilePath();
-        if (!m_root.isEmpty() && !isLinkOrReparsePoint(dirInfo) && !root.isEmpty() &&
-            !canonicalDir.isEmpty() && dirInfo.fileName() == sessionId &&
-            hasOwnershipMarker(t->dir, sessionId) &&
-            QDir::cleanPath(QFileInfo(canonicalDir).absolutePath()) == QDir::cleanPath(root)) {
-            QFile::remove(QDir(t->dir).filePath(".fastresume"));
-            QFile::remove(QDir(t->dir).filePath(".torrent"));
-            if (deleteData) {
+        const QString root = managedRootFor(t->dir);
+        if (!root.isEmpty() && !isLinkOrReparsePoint(dirInfo) && dirInfo.fileName() == sessionId &&
+            (hasOwnershipMarker(t->dir, sessionId) || retainedMarkerMatches(t->dir, sessionId))) {
+            // Preserve ownership until libtorrent has closed or deleted its backing files.
+            if (writeAtomic(QDir(t->dir).filePath(".retained"), sessionId.toUtf8()))
                 QFile::remove(QDir(t->dir).filePath(".bitfly-session"));
-                if (!hasHandle)
-                    QDir(t->dir).removeRecursively();
-            } else {
-                // Keep downloaded media as retained user data without restoring the removed
-                // session.
-                writeAtomic(QDir(t->dir).filePath(".retained"), sessionId.toUtf8());
-                QFile::remove(QDir(t->dir).filePath(".bitfly-session"));
-            }
         }
     }
-    delete t;
+    if (hasHandle)
+        m_session->remove_torrent(t->handle,
+                                  deleteData ? lt::session::delete_files : lt::remove_flags_t{});
+    else if (!t->addPending || !m_session)
+        finishRemoval(t, true);
     m_lastDiskScan.invalidate();
     scanManagedStorage();
     publish();
+}
+
+void TorrentEngine::finishRemoval(Torrent* t, bool success) {
+    if (!t || m_removing.value(t->id) != t)
+        return;
+    if (success && t->deleteDataOnRemove && QFileInfo::exists(t->dir)) {
+        const QFileInfo info(t->dir);
+        success = !managedRootFor(t->dir).isEmpty() && !isLinkOrReparsePoint(info) &&
+                  info.fileName() == t->id &&
+                  (hasOwnershipMarker(t->dir, t->id) || retainedMarkerMatches(t->dir, t->id)) &&
+                  QDir(t->dir).removeRecursively();
+    }
+    const QString id = t->id;
+    const bool deletedData = t->deleteDataOnRemove;
+    m_removing.remove(id);
+    delete t;
+    if (!success)
+        emit error(
+            "Could not remove all torrent data. Close apps using those files and retry cleanup.");
+    m_lastDiskScan.invalidate();
+    scanManagedStorage();
+    emit removalFinished(id, deletedData, success);
 }
 
 std::optional<StreamFile> TorrentEngine::describe(const QString& id) const {
@@ -596,15 +818,37 @@ void TorrentEngine::demand(const QString& id, qint64 offset, qint64 length) {
 
 void TorrentEngine::schedule(Torrent& t, qint64 offset, qint64 length) {
     t.lastDemandMs = m_uptime.elapsed();
+    t.lastWindowOffset = std::max<qint64>(0, offset);
     if (m_storagePressure || t.userPaused)
         return;
     const auto ti = t.handle.torrent_file();
-    if (!ti || t.selected < 0)
+    if (!ti || t.selected < 0 || t.selected >= ti->files().num_files())
+        return;
+    const auto fi = lt::file_index_t(t.selected);
+    const auto reads = scheduledPieces(ti->files().file_offset(fi), ti->files().file_size(fi),
+                                       offset, std::min<qint64>(length, 2 * 1024 * 1024),
+                                       ti->piece_length(), ti->num_pieces(), CachePieceLookAhead);
+    t.readWanted = QSet<int>(reads.begin(), reads.end());
+    applyStreamWindow(t, t.lastWindowOffset);
+    requestPieceReads(t);
+}
+
+void TorrentEngine::applyStreamWindow(Torrent& t, qint64 offset) {
+    const auto ti = t.handle.torrent_file();
+    if (!ti || !t.handle.is_valid() || t.selected < 0 || t.selected >= ti->files().num_files())
         return;
     const auto& files = ti->files();
     const auto fi = lt::file_index_t(t.selected);
-    const auto pieces = scheduledPieces(files.file_offset(fi), files.file_size(fi), offset, length,
-                                        ti->piece_length(), ti->num_pieces(), CachePieceLookAhead);
+    const qint64 pieceBytes = std::max<qint64>(1, ti->piece_length());
+    // Priorities intentionally cover a bounded window ahead of the playhead. Pieces far
+    // beyond the viewer's buffer are not given deadlines; re-issuing the window on each
+    // demand keeps the download sequential without touching pieces already behind it.
+    const int lookAhead =
+        int(std::clamp<qint64>(m_streamAheadBytes / pieceBytes, 1, MaxStreamWindowPieces));
+    const qint64 windowBytes = qint64(lookAhead) * pieceBytes;
+    const auto pieces =
+        scheduledPieces(files.file_offset(fi), files.file_size(fi), offset, windowBytes,
+                        ti->piece_length(), ti->num_pieces(), lookAhead);
     const QSet<int> current(pieces.begin(), pieces.end());
     for (int old : t.demandedPieces)
         if (!current.contains(old))
@@ -619,13 +863,20 @@ void TorrentEngine::schedule(Torrent& t, qint64 offset, qint64 length) {
         t.handle.set_piece_deadline(pi, std::min(15000, 80 + distance * pieceEtaMs), {});
         ++distance;
     }
-    requestPieceReads(t);
+}
+
+void TorrentEngine::resetStreamWindow(Torrent& t) {
+    if (t.handle.is_valid())
+        for (int piece : t.demandedPieces)
+            t.handle.reset_piece_deadline(lt::piece_index_t(piece));
+    t.demandedPieces.clear();
+    t.readWanted.clear();
 }
 
 void TorrentEngine::requestPieceReads(Torrent& t) {
     if (!t.handle.is_valid() || t.readPending.size() >= CacheConcurrentReads)
         return;
-    QList<int> pieces = t.demandedPieces.values();
+    QList<int> pieces = t.readWanted.values();
     std::sort(pieces.begin(), pieces.end());
     for (int piece : pieces) {
         if (t.readPending.size() >= CacheConcurrentReads)
@@ -701,6 +952,10 @@ void TorrentEngine::maybeStreamReady(Torrent& t) {
     const qint64 buffered = readVerified(file->id, 0, target).size();
     if (buffered >= target) {
         t.streamReadyEmitted = true;
+        // Consumers resolve the playable file from the last published snapshot when
+        // streamReady arrives. Publish the snapshot that contains the selection first so
+        // the signal contract does not depend on the periodic publish timer's phase.
+        publish();
         emit streamReady(t.id, file->id);
         return;
     }
@@ -743,8 +998,118 @@ void TorrentEngine::setCacheLimitBytes(qint64 bytes) {
     publish();
 }
 
+void TorrentEngine::setNetworkLimits(int connections, int uploadKiB, int downloadKiB) {
+    m_connectionsLimit = std::clamp(connections, 20, 1000);
+    m_uploadLimitKiB = std::clamp(uploadKiB, 0, 102400);
+    m_downloadLimitKiB = std::clamp(downloadKiB, 0, 102400);
+    if (!m_session)
+        return;
+    lt::settings_pack settings;
+    settings.set_int(lt::settings_pack::connections_limit, m_connectionsLimit);
+    settings.set_int(lt::settings_pack::upload_rate_limit, m_uploadLimitKiB * 1024);
+    settings.set_int(lt::settings_pack::download_rate_limit, m_downloadLimitKiB * 1024);
+    m_session->apply_settings(settings);
+}
+
+void TorrentEngine::setDiscovery(bool dht, bool lsd, bool portMapping) {
+    m_dhtEnabled = dht;
+    m_lsdEnabled = lsd;
+    m_portMappingEnabled = portMapping;
+    if (!m_session)
+        return;
+    lt::settings_pack settings;
+    settings.set_bool(lt::settings_pack::enable_dht, dht);
+    settings.set_bool(lt::settings_pack::enable_lsd, lsd);
+    settings.set_bool(lt::settings_pack::enable_upnp, portMapping);
+    settings.set_bool(lt::settings_pack::enable_natpmp, portMapping);
+    m_session->apply_settings(settings);
+}
+
+void TorrentEngine::setStreamAheadBytes(qint64 bytes) {
+    m_streamAheadBytes = std::clamp<qint64>(bytes, 8LL * 1024 * 1024, 8LL * 1024 * 1024 * 1024);
+    for (auto* t : m_torrents)
+        if (t->metadataChecked && t->selected >= 0 && !t->userPaused && !m_storagePressure)
+            applyStreamWindow(*t, t->lastWindowOffset);
+}
+
+void TorrentEngine::setStorageRoot(QString path) {
+    QString errorMessage;
+    const QString root = canonicalManagedRoot(path, &errorMessage);
+    if (root.isEmpty()) {
+        emit error(errorMessage);
+        return;
+    }
+    if (root == m_root)
+        return;
+    for (const QString& known : managedRoots())
+        if (nestedManagedRoots(root, known)) {
+            emit error("Choose a download folder outside existing BitFly torrent folders.");
+            return;
+        }
+    if (!m_root.isEmpty())
+        m_extraRoots.insert(m_root);
+    m_root = root;
+    m_lastDiskScan.invalidate();
+    scanManagedStorage();
+    publish();
+}
+
+void TorrentEngine::adoptStorageRoots(QStringList roots) {
+    for (const QString& path : roots) {
+        QString errorMessage;
+        const QString root = canonicalManagedRoot(path, &errorMessage);
+        if (root.isEmpty() || root == m_root)
+            continue;
+        bool nested = false;
+        for (const QString& known : managedRoots())
+            nested |= nestedManagedRoots(root, known);
+        if (nested)
+            continue;
+        m_extraRoots.insert(root);
+    }
+    m_lastDiskScan.invalidate();
+    scanManagedStorage();
+}
+
+void TorrentEngine::purge(QString sessionId) {
+    if (!isUuid(sessionId) || m_torrents.contains(sessionId) || m_removing.contains(sessionId)) {
+        emit removalFinished(sessionId, true, false);
+        return;
+    }
+    for (const QString& root : managedRoots()) {
+        const QString dir = QDir(root).filePath(sessionId);
+        const QFileInfo info(dir);
+        if (!info.exists())
+            continue;
+        if (!info.isDir() || isLinkOrReparsePoint(info) || info.fileName() != sessionId) {
+            emit removalFinished(sessionId, true, false);
+            return;
+        }
+        if (!hasOwnershipMarker(dir, sessionId) && !retainedMarkerMatches(dir, sessionId)) {
+            emit removalFinished(sessionId, true, false);
+            return;
+        }
+        const QString canonical = info.canonicalFilePath();
+        if (canonical.isEmpty() || !sameManagedPath(QFileInfo(canonical).absolutePath(),
+                                                    QFileInfo(root).canonicalFilePath())) {
+            emit removalFinished(sessionId, true, false);
+            return;
+        }
+        const bool removed = QDir(dir).removeRecursively();
+        if (removed) {
+            m_lastDiskScan.invalidate();
+            scanManagedStorage();
+            publish();
+        } else
+            emit error("Could not delete retained torrent data. Close any app using those files.");
+        emit removalFinished(sessionId, true, removed);
+        return;
+    }
+    emit removalFinished(sessionId, true, true);
+}
+
 void TorrentEngine::scanManagedStorage() {
-    if (m_root.isEmpty() || !QFileInfo(m_root).isDir())
+    if (managedRoots().isEmpty())
         return;
     if (m_lastDiskScan.isValid() && m_lastDiskScan.elapsed() < 5000)
         return;
@@ -752,32 +1117,36 @@ void TorrentEngine::scanManagedStorage() {
     qint64 total = 0;
     int scanned = 0;
     bool capped = false;
-    QDirIterator dirs(m_root, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::NoIteratorFlags);
-    while (dirs.hasNext()) {
-        if (++scanned > 100000) {
-            capped = true;
-            break;
-        }
-        const QFileInfo dirInfo(dirs.next());
-        if (isLinkOrReparsePoint(dirInfo) || !isUuid(dirInfo.fileName()))
+    for (const QString& root : managedRoots()) {
+        if (capped || !QFileInfo(root).isDir())
             continue;
-        QDirIterator files(dirInfo.absoluteFilePath(), QDir::Files | QDir::NoDotAndDotDot,
-                           QDirIterator::Subdirectories);
-        while (files.hasNext()) {
+        QDirIterator dirs(root, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::NoIteratorFlags);
+        while (dirs.hasNext()) {
             if (++scanned > 100000) {
                 capped = true;
                 break;
             }
-            const QFileInfo info(files.next());
-            if (!isLinkOrReparsePoint(info) && info.isFile()) {
-                const qint64 size = allocatedSize(info);
-                total = size > std::numeric_limits<qint64>::max() - total
-                            ? std::numeric_limits<qint64>::max()
-                            : total + size;
+            const QFileInfo dirInfo(dirs.next());
+            if (isLinkOrReparsePoint(dirInfo) || !isUuid(dirInfo.fileName()))
+                continue;
+            QDirIterator files(dirInfo.absoluteFilePath(), QDir::Files | QDir::NoDotAndDotDot,
+                               QDirIterator::Subdirectories);
+            while (files.hasNext()) {
+                if (++scanned > 100000) {
+                    capped = true;
+                    break;
+                }
+                const QFileInfo info(files.next());
+                if (!isLinkOrReparsePoint(info) && info.isFile()) {
+                    const qint64 size = allocatedSize(info);
+                    total = size > std::numeric_limits<qint64>::max() - total
+                                ? std::numeric_limits<qint64>::max()
+                                : total + size;
+                }
             }
+            if (capped)
+                break;
         }
-        if (capped)
-            break;
     }
     // Treat a truncated scan as full so unbounded trees cannot bypass admission.
     if (capped)
@@ -786,38 +1155,38 @@ void TorrentEngine::scanManagedStorage() {
         m_diskUsage = total;
         emit cacheBytesChanged(total);
     }
-    QStorageInfo storage(m_root);
-    storage.refresh();
-    m_storagePressure =
-        m_diskUsage >= m_diskQuotaLimit || storage.bytesAvailable() < LowDiskFreeBytes;
+    const qint64 available = managedFreeBytes();
+    m_storagePressure = m_diskUsage >= m_diskQuotaLimit || available < LowDiskFreeBytes;
     const bool atQuota = m_diskUsage >= m_diskQuotaLimit;
     for (auto* t : m_torrents)
         if (t->handle.is_valid()) {
             const bool active =
                 t->lastDemandMs >= 0 && m_uptime.elapsed() - t->lastDemandMs < 120000;
-            if (m_storagePressure &&
-                (!active || atQuota || storage.bytesAvailable() < LowDiskFreeBytes))
+            if (m_storagePressure && (!active || atQuota || available < LowDiskFreeBytes))
                 t->handle.pause();
             else if (!m_storagePressure && !t->userPaused && t->error.isEmpty() && t->selected >= 0)
                 t->handle.resume();
         }
 }
 
-void TorrentEngine::writeAtomic(const QString& path, const QByteArray& bytes) {
+bool TorrentEngine::writeAtomic(const QString& path, const QByteArray& bytes) {
     if (bytes.size() > MaxTorrentBytes) {
         emit error("Session state exceeds the supported size and could not be saved.");
-        return;
+        return false;
     }
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size()) {
         file.cancelWriting();
         emit error(
             "Could not save torrent state. Check the cache folder and available disk space.");
-        return;
+        return false;
     }
-    if (!file.commit())
+    if (!file.commit()) {
         emit error(
             "Could not commit torrent state. Check the cache folder and available disk space.");
+        return false;
+    }
+    return true;
 }
 
 void TorrentEngine::save() {
@@ -867,6 +1236,7 @@ void TorrentEngine::finishStop() {
 void TorrentEngine::poll() {
     if (!m_session)
         return;
+    bool finishStopAfterAlerts = false;
     m_session->post_torrent_updates();
     std::vector<lt::alert*> alerts;
     m_session->pop_alerts(&alerts);
@@ -881,7 +1251,26 @@ void TorrentEngine::poll() {
                     t = candidate;
                     break;
                 }
-            if (t && !added->error && added->handle.is_valid()) {
+            Torrent* removing = nullptr;
+            for (auto* candidate : m_removing)
+                if (candidate == cookie &&
+                    sameManagedPath(QDir(candidate->dir).filePath("data"),
+                                    QString::fromStdString(added->params.save_path))) {
+                    removing = candidate;
+                    break;
+                }
+            if (t)
+                t->addPending = false;
+            if (removing) {
+                removing->addPending = false;
+                if (!added->error && added->handle.is_valid()) {
+                    removing->handle = added->handle;
+                    m_session->remove_torrent(added->handle, removing->deleteDataOnRemove
+                                                                 ? lt::session::delete_files
+                                                                 : lt::remove_flags_t{});
+                } else
+                    finishRemoval(removing, true);
+            } else if (t && !added->error && added->handle.is_valid()) {
                 t->handle = added->handle;
                 t->metadataStartedMs = m_uptime.elapsed();
                 if (t->handle.torrent_file())
@@ -903,6 +1292,24 @@ void TorrentEngine::poll() {
                     t->error = QString::fromStdString(added->error.message());
                 emit error(QString::fromStdString(added->error.message()));
             }
+        } else if (auto* deleted = lt::alert_cast<lt::torrent_deleted_alert>(alert)) {
+            for (auto* t : m_removing)
+                if (t->deleteDataOnRemove && t->handle == deleted->handle) {
+                    finishRemoval(t, true);
+                    break;
+                }
+        } else if (auto* failed = lt::alert_cast<lt::torrent_delete_failed_alert>(alert)) {
+            for (auto* t : m_removing)
+                if (t->deleteDataOnRemove && t->handle == failed->handle) {
+                    finishRemoval(t, false);
+                    break;
+                }
+        } else if (auto* removed = lt::alert_cast<lt::torrent_removed_alert>(alert)) {
+            for (auto* t : m_removing)
+                if (!t->deleteDataOnRemove && t->handle == removed->handle) {
+                    finishRemoval(t, true);
+                    break;
+                }
         } else if (auto* metadata = lt::alert_cast<lt::metadata_received_alert>(alert)) {
             for (auto* t : m_torrents)
                 if (t->handle == metadata->handle)
@@ -911,6 +1318,7 @@ void TorrentEngine::poll() {
             for (auto* t : m_torrents)
                 if (t->handle == piece->handle) {
                     t->readPending.remove(int(piece->piece));
+                    t->readWanted.remove(int(piece->piece));
                     if (!piece->error && piece->buffer &&
                         t->demandedPieces.contains(int(piece->piece))) {
                         cachePiece(cacheKey(t->id, int(piece->piece)),
@@ -928,28 +1336,21 @@ void TorrentEngine::poll() {
                         params.flags |= lt::torrent_flags::paused;
                     else
                         params.flags &= ~lt::torrent_flags::paused;
-                    const auto bytes = lt::write_resume_data_buf(params);
-                    writeAtomic(QDir(t->dir).filePath(".fastresume"),
-                                QByteArray(bytes.data(), int(bytes.size())));
                     try {
-                        // v2 magnets may not have downloaded every Merkle piece layer yet.
-                        // This is a private recovery file, not an exported distribution torrent.
-                        const auto torrentBytes = lt::write_torrent_file_buf(
-                            params, lt::write_flags::allow_missing_piece_layer);
-                        if (!torrentBytes.empty())
-                            writeAtomic(QDir(t->dir).filePath(".torrent"),
-                                        QByteArray(torrentBytes.data(), int(torrentBytes.size())));
-                    } catch (const lt::system_error& e) {
-                        emit error("Could not preserve torrent metadata: " +
-                                   QString::fromStdString(e.what()));
+                        const auto bytes = lt::write_resume_data_buf(params);
+                        writeAtomic(QDir(t->dir).filePath(".fastresume"),
+                                    QByteArray(bytes.data(), int(bytes.size())));
+                    } catch (const std::exception& e) {
+                        emit error("Could not preserve resume data: " +
+                                   QString::fromUtf8(e.what()));
                     }
                     break;
                 }
             if (--m_resumePending <= 0 && m_stopping)
-                finishStop();
+                finishStopAfterAlerts = true;
         } else if (lt::alert_cast<lt::save_resume_data_failed_alert>(alert)) {
             if (--m_resumePending <= 0 && m_stopping)
-                finishStop();
+                finishStopAfterAlerts = true;
         } else if (auto* finished = lt::alert_cast<lt::piece_finished_alert>(alert)) {
             for (auto* t : m_torrents)
                 if (t->handle == finished->handle &&
@@ -975,12 +1376,24 @@ void TorrentEngine::poll() {
         if (!m_session)
             break;
     }
+    if (finishStopAfterAlerts)
+        finishStop();
 }
 
 QVariantMap TorrentEngine::snapshot(Torrent& t) {
-    QVariantMap out{{"id", t.id},    {"name", t.name},   {"state", "metadata"},   {"progress", 0.0},
-                    {"rate", 0},     {"peers", 0},       {"downloaded", 0},       {"total", 0},
-                    {"buffer", 0.0}, {"error", t.error}, {"selected", t.selected}};
+    QVariantMap out{{"id", t.id},
+                    {"name", t.name},
+                    {"state", "metadata"},
+                    {"progress", 0.0},
+                    {"rate", 0},
+                    {"peers", 0},
+                    {"downloaded", 0},
+                    {"total", 0},
+                    {"buffer", 0.0},
+                    {"error", t.error},
+                    {"selected", t.selected},
+                    {"input", t.input},
+                    {"savePath", QDir::toNativeSeparators(QDir(t.dir).filePath("data"))}};
     QVariantList files;
     const auto ti = t.handle.is_valid() ? t.handle.torrent_file() : nullptr;
     if (ti) {
@@ -991,9 +1404,16 @@ QVariantMap TorrentEngine::snapshot(Torrent& t) {
                            : statusName(s.state);
         out["progress"] = double(s.progress_ppm) / 1000000.0;
         out["rate"] = s.download_payload_rate;
+        out["uploaded"] = s.total_upload;
+        out["uploadRate"] = s.upload_payload_rate;
+        out["uploadLimitKiB"] = m_uploadLimitKiB;
+        out["downloadLimitKiB"] = m_downloadLimitKiB;
+        out["connectionsLimit"] = m_connectionsLimit;
         out["peers"] = s.num_peers;
         out["downloaded"] = s.total_done;
         out["total"] = ti->total_size();
+        if (!t.magnet.isEmpty())
+            out["magnet"] = t.magnet;
         qint64 mediaBytes = 0;
         for (auto i : ti->files().file_range()) {
             const QString name = QString::fromStdString(ti->files().file_path(i));
@@ -1002,6 +1422,8 @@ QVariantMap TorrentEngine::snapshot(Torrent& t) {
                 {"index", int(i)}, {"name", name}, {"size", size}, {"playable", playable(name)}});
             if (int(i) == t.selected) {
                 mediaBytes = size;
+                out["selectedName"] = name;
+                out["selectedSize"] = size;
             }
         }
         const qint64 startupTarget = std::min<qint64>(2 * 1024 * 1024, mediaBytes);
@@ -1016,6 +1438,8 @@ QVariantMap TorrentEngine::snapshot(Torrent& t) {
                   "magnet link.";
         out["error"] = t.error;
     }
+    if (!out.contains("magnet") && t.input.startsWith("magnet:", Qt::CaseInsensitive))
+        out["magnet"] = t.input;
     QCollator episodeOrder;
     episodeOrder.setNumericMode(true);
     std::stable_sort(files.begin(), files.end(),

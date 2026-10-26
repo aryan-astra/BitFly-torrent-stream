@@ -6,35 +6,44 @@ ItemDelegate {
     required property string label
     required property string iconName
     property bool selected: false
-    implicitHeight: 38
+    implicitHeight: 48
     hoverEnabled: true
-    leftPadding: 11
+    leftPadding: 12
     rightPadding: 10
+    Accessible.name: root.label
+    Accessible.selected: root.selected
     background: Rectangle {
-        radius: 5
-        color: root.selected ? "#343a36" : (root.hovered ? "#2b302d" : "transparent")
+        radius: Theme.radius
+        color: root.selected ? Theme.accentWash : (root.hovered ? Theme.raised : "transparent")
+        border.width: root.activeFocus ? 1 : 0
+        border.color: Theme.accent
         Rectangle {
             visible: root.selected
-            width: 2
-            radius: 1
-            color: "#d7e4dc"
+            width: 3
+            height: parent.height - 14
+            radius: 2
+            color: Theme.accent
             anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
+            anchors.verticalCenter: parent.verticalCenter
         }
     }
     contentItem: Row {
-        spacing: 11
+        spacing: 9
         NavIcon {
             name: root.iconName
-            color: root.selected ? "#f3f5f3" : "#a5aca7"
+            color: root.selected ? Theme.accent : Theme.faint
             anchors.verticalCenter: parent.verticalCenter
+            rotation: root.down ? 5 : (root.hovered && !Theme.reducedMotion ? -6 : 0)
+            scale: root.down ? 0.92 : (root.hovered && !Theme.reducedMotion ? 1.08 : 1)
+            Behavior on rotation { NumberAnimation { duration: Theme.fastMotion; easing.type: Easing.OutCubic } }
+            Behavior on scale { NumberAnimation { duration: Theme.fastMotion; easing.type: Easing.OutCubic } }
         }
         Text {
             text: root.label
-            color: root.selected ? "#ffffff" : "#c9ceca"
+            color: root.selected ? Theme.ink : Theme.secondary
             font.family: Theme.fontFamily
             font.pixelSize: 13
+            font.weight: root.selected ? Font.DemiBold : Font.Normal
             anchors.verticalCenter: parent.verticalCenter
         }
     }

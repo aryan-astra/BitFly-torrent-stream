@@ -8,8 +8,12 @@
 
 namespace bitfly {
 namespace {
-constexpr int MaxScheduledLookAhead = 24;
-}
+// Hard ceiling for deadline scheduling. The engine clamps its configurable
+// stream-ahead window to MaxStreamWindowPieces; this cap keeps a single
+// demand from touching the whole torrent when pieces are tiny, while still
+// allowing a 256 MiB buffer at a typical 256 KiB piece size.
+constexpr int MaxScheduledLookAhead = 4096;
+} // namespace
 
 bool isSafeTorrentPath(const QString& path) {
     if (path.isEmpty() || path.startsWith('/') || path.startsWith('\\') || path.contains(':'))

@@ -1,6 +1,10 @@
 #include "../src/app/Platform.h"
 #include "../src/app/SessionStore.h"
+#include "../src/app/ThumbnailArt.h"
 
+#include <QFileInfo>
+#include <QGuiApplication>
+#include <QImage>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
@@ -178,7 +182,33 @@ class AppTests final : public QObject {
         }
         QSqlDatabase::removeDatabase(connection);
     }
+
+    void coverArtIsDeterministicAndPersists() {
+        const QImage first = bitfly::renderCoverArt(QStringLiteral("The Long Way Home (2026)"),
+                                                    QStringLiteral("id-1"));
+        const QImage second = bitfly::renderCoverArt(QStringLiteral("The Long Way Home (2026)"),
+                                                     QStringLiteral("id-1"));
+        const QImage different =
+            bitfly::renderCoverArt(QStringLiteral("Another Library Entry"), QStringLiteral("id-2"));
+        QCOMPARE(first.size(), QSize(512, 512));
+        QCOMPARE(first, second);
+        QVERIFY(first != different);
+        QVERIFY(first.pixelColor(8, 8) != first.pixelColor(500, 500));
+
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath("nested/cover.png");
+        QString error;
+        QVERIFY2(bitfly::writeCoverArt(path, QStringLiteral("The Long Way Home"),
+                                       QStringLiteral("id-1"), &error),
+                 qPrintable(error));
+        QVERIFY(QFileInfo::exists(path));
+        QVERIFY(QFileInfo(path).size() > 1024);
+        QImage loaded(path);
+        QVERIFY(!loaded.isNull());
+        QCOMPARE(loaded.size(), QSize(512, 512));
+    }
 };
 
-QTEST_GUILESS_MAIN(AppTests)
+QTEST_MAIN(AppTests)
 #include "app_tests.moc"

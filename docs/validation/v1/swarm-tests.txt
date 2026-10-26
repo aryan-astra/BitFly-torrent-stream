@@ -1,0 +1,11 @@
+Test project <workspace>/build
+    Start 4: integration
+1/3 Test #4: integration ......................   Passed  169.19 sec
+    Start 5: recovery
+2/3 Test #5: recovery .........................   Passed  119.43 sec
+    Start 6: lifecycle
+3/3 Test #6: lifecycle ........................   Passed    2.59 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) = 291.39 sec

@@ -1,0 +1,13 @@
+Test project <workspace>/build
+    Start  8: controller
+1/4 Test  #8: controller .......................   Passed   25.25 sec
+    Start 10: qml_smoke
+2/4 Test #10: qml_smoke ........................   Passed    3.82 sec
+    Start 11: qml_search
+3/4 Test #11: qml_search .......................   Passed    2.76 sec
+    Start 12: qml_large_library
+4/4 Test #12: qml_large_library ................   Passed    3.91 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =  35.88 sec

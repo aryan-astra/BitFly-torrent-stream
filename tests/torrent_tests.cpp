@@ -1,5 +1,6 @@
 #include "../src/torrent/StreamingRules.h"
 #include <QtTest>
+#include <algorithm>
 #include <limits>
 
 class TorrentTests final : public QObject {
@@ -25,12 +26,21 @@ class TorrentTests final : public QObject {
         QCOMPARE(bitfly::scheduledPieces(0, 1000, 130, 200, 100, 10), QList<int>({1, 2, 3}));
         QCOMPARE(bitfly::scheduledPieces(950, 100, 20, 10, 100, 11), QList<int>({9}));
         QCOMPARE(bitfly::scheduledPieces(0, 1000, 0, 1000, 100, 10, 4), QList<int>({0, 1, 2, 3}));
+        QCOMPARE(bitfly::scheduledPieces(0, 1000, 0, 1000, 100, 10, 1), QList<int>({0}));
+        const auto afterPlayhead = bitfly::scheduledPieces(0, 10000, 350, 1000, 100, 100, 20);
+        QCOMPARE(afterPlayhead.first(), 3);
+        QVERIFY(std::all_of(afterPlayhead.begin(), afterPlayhead.end(),
+                            [](int piece) { return piece >= 3; }));
         QVERIFY(bitfly::scheduledPieces(0, 0, 0, 10, 100, 10).isEmpty());
         QVERIFY(bitfly::scheduledPieces(0, 100, 101, 10, 100, 10).isEmpty());
         QVERIFY(bitfly::scheduledPieces(std::numeric_limits<qint64>::max() - 2, 10, 3, 1, 100, 10)
                     .isEmpty());
         QVERIFY(bitfly::scheduledPieces(std::numeric_limits<qint64>::max() - 4, 10, 0, 10, 100, 10)
                     .isEmpty());
+        const auto bounded = bitfly::scheduledPieces(0, 10000, 0, 10000, 1, 10000, 10000);
+        QCOMPARE(bounded.size(), 4096);
+        QCOMPARE(bounded.first(), 0);
+        QCOMPARE(bounded.last(), 4095);
     }
 
     void advancesStartupBufferAcrossBoundedSchedulingWindows() {

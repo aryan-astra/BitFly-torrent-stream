@@ -1,9 +1,95 @@
 # Validation status
 
-BitFly 0.1.0-preview.1 is a development preview. Updated 2026-10-23 on Windows
+## Local v1 redesign verification — 2026-10-26
+
+The current source is a local 1.0.0 candidate. Nothing was pushed or published.
+The original B monogram was retained at the user's request; the white interface
+now uses the selected darker sky/paper-cloud background and 3D sidebar icons.
+
+All 12 CTest groups passed across the final focused/swarm runs. The four normal
+swarm formats passed in 169.19 s; damaged v1/v2-resume and quota recovery passed
+in 119.43 s; storage lifecycle regressions passed in 2.59 s. Controller/artwork
+integration, real installed-VLC HTTP preview capture/cancellation, optional
+services, keyboard/tooltips/cover morph and 1000-entry library virtualization
+passed. Final controller changes and final artwork were rechecked separately.
+Formatting and exhaustive warning/portability cppcheck completed with exit 0.
+Evidence: [validation/v1](validation/v1).
+
+Three isolated empty-session software-renderer runs recorded about 72.4 MiB peak
+working set and 46.3–49.6 MiB peak private commit, with 567 ms median first frame.
+This excludes active transfers, external players, preview decoding and startup
+update/Cloudflare status checks; it is not a cold-boot or whole-stream budget.
+The machine was under memory pressure. See the benchmark JSON for raw values.
+
+The local x64 installer is 28,030,320 bytes; portable ZIP 39,970,619 bytes; staged
+files 123,018,080 bytes. Qt deployment, architecture checks, Inno compilation and
+checksums completed. Compiler-tool runtimes unnecessary to deployment were
+excluded by supplying only the needed OpenSSL runtime directory. The package's
+Windows plugin booted and exited cleanly with SDK runtime paths removed.
+Because a hidden Windows window does not render a frame, the packaged QML/image
+render was separately checked using the matching SDK offscreen plugin, with
+only packaged DLLs on PATH. This distinction is intentional; it does not claim
+an exposed-window Windows first-frame measurement.
+
+Actual current-app render: [screenshots/v1/packaged-library.png](screenshots/v1/packaged-library.png).
+The installer was built and hashed, not installed over the user's application.
+Fresh ARM64 CI, physical-device tests and publisher signing remain future
+release gates. Earlier preview records below describe their historical source.
+
+
+
+BitFly 0.1.0-preview.1 is a development preview. Updated 2026-10-25 on Windows
 x64. This records execution evidence, not production certification. The
 authoritative preview is GitHub release `422010008`, published
-2026-10-23T15:32:38Z as prerelease `v0.1.0-preview.1`.
+2026-10-23T15:32:38Z as prerelease `v0.1.0-preview.1`. The redesign described in
+[REDESIGN_PLAN.md](REDESIGN_PLAN.md) is unreleased work in the local tree; it
+does not change the preview assets, tag, or binaries recorded below.
+
+## Redesign validation (2026-10-25, incomplete)
+
+The redesign replaces Stream/History with a Library of bright live sessions and
+dimmed saved posters, persists each entry's magnet and generated cover art, moves
+new sessions to a configurable storage root, adds hover help to every setting,
+and applies a tuned libtorrent profile with bounded stream-ahead.
+
+Evidence collected so far:
+
+- The engine's missing ordering contract is fixed by construction: a session
+  snapshot is published before `streamReady` is emitted. The ARM64 `recovery`
+  failure was consistent with a listener observing `streamReady` before the
+  selected file existed in `sessionsChanged`.
+- Repeated three-case sequences (`realLibtorrentStreamsRangesAndRestores:v1`,
+  `:v1magnet`, `:v2`) were run against both the HEAD engine and the redesigned
+  engine. HEAD produced 4/4 clean sequences. The redesigned engine produced
+  15/16, 10/10, 13/14, 4/4 and (at last observation) 5/5 clean sequences across
+  separate runs. Console-bound QtTest output was captured with `-o <file>,txt`.
+- The one observed redesign failure was an access violation (`0xC0000005`)
+  during teardown or the next case's hash check. GDB reported a heap block
+  modified after free, with the detected stack in `libtorrent::set_piece_hashes`
+  or an asio thread. That is a detection point, not the write. No usable crash
+  dump was captured; WER LocalDumps wrote nothing because the process exits
+  outside WER handling.
+- One teardown suspect was removed: resume data may carry sparse merkle trees,
+  and `write_torrent_file_buf` walks them unsafely. Teardown now clears
+  `merkle_trees`, `verified_leaf_hashes` and `merkle_tree_mask`, then writes v2
+  with `allow_missing_piece_layer`. libtorrent explicitly permits a v2
+  `.torrent` without piece layers. This is a defensible fix for one path, not a
+  proven root cause of the intermittent failure.
+- `app_tests` passed with the new deterministic cover-art test,
+  `coverArtIsDeterministicAndPersists`; `qml_smoke` passed offscreen against the
+  updated mock contract and produced Library, Queue and Settings screenshots.
+  `bitfly_platform` and the full `BitFly` target built and linked with Qt 6.8.3
+  MinGW x64.
+- The final stress run observed 5/5 clean sequences before the session lost
+  shell access; the remaining sequences and the post-magnet-cache rebuild were
+  not observed. The counts above are therefore provisional.
+
+Not yet valid for this tree: a post-change `recovery` run, a
+`v2-corrupt-resume` run against the piece-layer-free fallback, a full `ctest`
+run including `integration` and `recovery`, `qmllint`, formatting, and a
+packaged first-frame smoke. No redesign test was skipped, weakened, or deleted.
+The redesign is not committed in the evidence above; the preview release and its
+six assets are unchanged.
 
 ## Continuation validation (2026-10-23)
 
