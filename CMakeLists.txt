@@ -73,6 +73,7 @@ if(WIN32)
   target_sources(BitFly PRIVATE packaging/BitFly.rc)
 endif()
 if(BUILD_TESTING)
+  file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-results")
   foreach(suite http torrent app integration)
     qt_add_executable(${suite}_tests tests/${suite}_tests.cpp)
     set_target_properties(${suite}_tests PROPERTIES WIN32_EXECUTABLE FALSE)
@@ -91,9 +92,11 @@ if(BUILD_TESTING)
         realLibtorrentStreamsRangesAndRestores:v1
         realLibtorrentStreamsRangesAndRestores:v1magnet
         realLibtorrentStreamsRangesAndRestores:v2
-        realLibtorrentStreamsRangesAndRestores:hybrid)
+        realLibtorrentStreamsRangesAndRestores:hybrid
+        -o "${CMAKE_CURRENT_BINARY_DIR}/test-results/integration.txt,txt" -o -,txt)
     else()
-      add_test(NAME ${suite} COMMAND ${suite}_tests)
+      add_test(NAME ${suite} COMMAND ${suite}_tests
+        -o "${CMAKE_CURRENT_BINARY_DIR}/test-results/${suite}.txt,txt" -o -,txt)
     endif()
     set_tests_properties(${suite} PROPERTIES TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endforeach()
@@ -101,27 +104,32 @@ if(BUILD_TESTING)
   add_test(NAME recovery COMMAND integration_tests
     realLibtorrentStreamsRangesAndRestores:v1-corrupt-resume
     realLibtorrentStreamsRangesAndRestores:v2-corrupt-resume
-    realLibtorrentStreamsRangesAndRestores:v1-quota)
+    realLibtorrentStreamsRangesAndRestores:v1-quota
+    -o "${CMAKE_CURRENT_BINARY_DIR}/test-results/recovery.txt,txt" -o -,txt)
   set_tests_properties(recovery PROPERTIES TIMEOUT 300 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   add_test(NAME lifecycle COMMAND integration_tests
     reopensRetainedDataWithTheSameIdAndCanRecreatePurgedId
     restoresActiveSessionsFromTheirOriginalStorageRoot
-    storageRootChangesKeepOldRootsManagedForSafePurge)
+    storageRootChangesKeepOldRootsManagedForSafePurge
+    -o "${CMAKE_CURRENT_BINARY_DIR}/test-results/lifecycle.txt,txt" -o -,txt)
   set_tests_properties(lifecycle PROPERTIES TIMEOUT 90 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   qt_add_executable(services_tests tests/services_tests.cpp)
   target_link_libraries(services_tests PRIVATE bitfly_platform Qt6::Test)
-  add_test(NAME services COMMAND services_tests)
+  add_test(NAME services COMMAND services_tests
+    -o "${CMAKE_CURRENT_BINARY_DIR}/test-results/services.txt,txt" -o -,txt)
   set_tests_properties(services PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   qt_add_executable(controller_tests tests/controller_tests.cpp)
   target_link_libraries(controller_tests PRIVATE bitfly_app Qt6::Test)
-  add_test(NAME controller COMMAND controller_tests)
+  add_test(NAME controller COMMAND controller_tests
+    -o "${CMAKE_CURRENT_BINARY_DIR}/test-results/controller.txt,txt" -o -,txt)
   set_tests_properties(controller PROPERTIES TIMEOUT 90 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   qt_add_executable(preview_tests tests/preview_tests.cpp)
   target_link_libraries(preview_tests PRIVATE bitfly_app Qt6::Test)
   target_compile_definitions(preview_tests PRIVATE BITFLY_PREVIEW_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/preview.avi")
   option(BITFLY_TEST_INSTALLED_VLC "Run the real installed-VLC preview test" OFF)
   if(BITFLY_TEST_INSTALLED_VLC)
-    add_test(NAME previews COMMAND preview_tests)
+    add_test(NAME previews COMMAND preview_tests
+      -o "${CMAKE_CURRENT_BINARY_DIR}/test-results/previews.txt,txt" -o -,txt)
     set_tests_properties(previews PROPERTIES TIMEOUT 240 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
   qt_add_executable(qml_smoke tests/qml_smoke.cpp)

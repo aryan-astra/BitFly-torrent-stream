@@ -197,6 +197,18 @@ jobs:
             -OutputDir $dist -RequireInstaller
           if ($LASTEXITCODE -ne 0) { throw 'Packaging failed.' }
 
+      - name: Upload failed test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: BitFly-${{ matrix.arch }}-test-diagnostics
+          path: |
+            build/release/test-results/*.txt
+            build/release/Testing/Temporary/LastTest.log
+            build/release/Testing/Temporary/LastTestsFailed.log
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Verify and smoke-test portable package
         shell: pwsh
         run: |
