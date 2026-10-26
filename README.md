@@ -1,6 +1,6 @@
 ![BitFly — a little less waiting. Paper clouds, film frames and a coral magnet in a blue sky.](docs/branding/bitfly-banner.png)
 
-# BitFly
+# <img src="qml/assets/bitfly-mark.png" width="34" height="34" alt=""> BitFly
 
 **Press play before the download is done.**
 
