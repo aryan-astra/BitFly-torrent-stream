@@ -1090,7 +1090,7 @@ ApplicationWindow {
                                 title: "Updates"
                                 SettingRow {
                                     title: "Stable releases"
-                                    hint: "BitFly checks at each app launch and downloads available updates in the background. Installers are verified first. Installing closes BitFly and may require Windows permission."
+                                    hint: "BitFly checks at each app launch and downloads available updates in the background. Installers are verified first. Installing saves sessions, closes BitFly and its players, and updates this app folder. Windows may request permission."
                                     detail: app.updateMessage.length ? app.updateMessage : "Checks at each app launch"
                                     QuietButton { text: "Check now"; enabled: !app.updateBusy; onClicked: app.checkUpdates() }
                                     QuietButton { visible: app.availableVersion.length > 0 && !app.updateReady; text: "Download update"; enabled: !app.updateBusy; highlighted: true; onClicked: app.downloadUpdate() }

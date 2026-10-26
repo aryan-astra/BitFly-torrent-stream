@@ -53,11 +53,19 @@ class ServicesTests final : public QObject {
         QCOMPARE(parsed->sha256, QByteArray(32, char(0xaa)));
         QVERIFY(!UpdateService::parseRelease(release(), "1.2.3", "x64", &error));
         QVERIFY(!UpdateService::parseRelease(release(), "1.0.0", "arm64", &error));
+        const auto arm64 = UpdateService::parseRelease(
+            release().replace("windows-x64", "windows-arm64"), "1.0.0", "arm64", &error);
+        QVERIFY(arm64);
+        QCOMPARE(arm64->fileName, "BitFly-1.2.3-windows-arm64-setup.exe");
         auto object = QJsonDocument::fromJson(release()).object();
         object["prerelease"] = true;
         QVERIFY(
             !UpdateService::parseRelease(QJsonDocument(object).toJson(), "1.0.0", "x64", &error));
         object["prerelease"] = false;
+        object["draft"] = true;
+        QVERIFY(
+            !UpdateService::parseRelease(QJsonDocument(object).toJson(), "1.0.0", "x64", &error));
+        object["draft"] = false;
         object["tag_name"] = "v1.2.3-rc.1";
         QVERIFY(
             !UpdateService::parseRelease(QJsonDocument(object).toJson(), "1.0.0", "x64", &error));

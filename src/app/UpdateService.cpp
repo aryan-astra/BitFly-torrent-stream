@@ -1,5 +1,6 @@
 #include "UpdateService.h"
 #include "Platform.h"
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -251,7 +252,8 @@ bool UpdateService::launchInstaller() {
         return false;
     }
     // The digest comes from the official HTTPS GitHub API, not an independent signing key.
-    if (!QProcess::startDetached(m_installer, {"/CURRENTUSER", "/NORESTART"})) {
+    if (!QProcess::startDetached(m_installer, {"/CURRENTUSER", "/NORESTART",
+                                               "/DIR=" + QCoreApplication::applicationDirPath()})) {
         fail("Could not start the update installer.");
         return false;
     }

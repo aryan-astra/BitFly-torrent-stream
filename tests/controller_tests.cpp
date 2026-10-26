@@ -128,6 +128,47 @@ class ControllerTests final : public QObject {
                                   0, 10000);
         QVERIFY(!controller.sessions().first().toMap().value("vlcRunning").toBool());
     }
+    void unavailableUpdateKeepsActiveAndPausedSessions() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        seed(directory.path());
+        {
+            SessionStore store(directory.filePath("sessions.sqlite"));
+            QVERIFY(store.put("generatePreviews", false));
+        }
+        const auto torrent = directory.filePath("update.torrent");
+        QFile metadata(torrent);
+        QVERIFY(metadata.open(QIODevice::WriteOnly));
+        metadata.write(
+            "d4:infod6:lengthi255946e4:name11:preview.avi12:piece lengthi262144e6:pieces20:");
+        metadata.write(QByteArray(20, '\0'));
+        metadata.write("ee");
+        metadata.close();
+        QString id;
+        {
+            ApplicationController controller(nullptr, directory.path());
+            QSignalSpy ready(&controller, &ApplicationController::workerReady);
+            QTRY_VERIFY_WITH_TIMEOUT(!ready.isEmpty(), 10000);
+            controller.openTorrent(QUrl::fromLocalFile(torrent));
+            QTRY_COMPARE_WITH_TIMEOUT(controller.sessions().size(), 1, 10000);
+            id = controller.sessions().first().toMap().value("id").toString();
+            controller.clearError();
+            controller.installUpdate();
+            QVERIFY(controller.error().isEmpty());
+            QCOMPARE(controller.sessions().size(), 1);
+            controller.pause(id, true);
+            QTRY_VERIFY_WITH_TIMEOUT(
+                controller.sessions().first().toMap().value("state").toString().contains(
+                    "pause", Qt::CaseInsensitive),
+                3000);
+            controller.installUpdate();
+            QVERIFY(controller.error().isEmpty());
+            QCOMPARE(controller.sessions().first().toMap().value("id").toString(), id);
+        }
+        SessionStore store(directory.filePath("sessions.sqlite"));
+        QCOMPARE(store.get("history").toList().size(), 1);
+        QCOMPARE(store.get("history").toList().first().toMap().value("id").toString(), id);
+    }
     void playerArgumentsUseDedicatedInstances() {
         QTemporaryDir directory;
         const auto vlc = directory.filePath("vlc.exe");

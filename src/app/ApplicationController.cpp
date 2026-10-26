@@ -1138,10 +1138,6 @@ void ApplicationController::downloadUpdate() {
     m_updates->download();
 }
 void ApplicationController::installUpdate() {
-    if (!m_players.isEmpty() || !m_sessions.isEmpty()) {
-        fail("Stop active torrent sessions and close their players before installing an update.");
-        return;
-    }
     if (!m_updates->launchInstaller())
         return;
     QCoreApplication::quit();

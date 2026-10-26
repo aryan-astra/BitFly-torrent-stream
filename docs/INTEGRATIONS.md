@@ -91,9 +91,14 @@ the saved installer immediately before launch. One
 cached installer per architecture is retained instead of accumulating versions.
 On later launches, a cached installer matching the release's size and digest is
 reused instead of downloaded again.
-The installer runs visibly with `/CURRENTUSER /NORESTART`; BitFly must stop its
-owned streams/processes cleanly before exiting for installation. No unattended
-overwrite or forced shutdown is performed by the service.
+The installer runs visibly with `/CURRENTUSER /NORESTART /DIR=<application folder>`
+so an extracted ZIP updates its current folder instead of leaving a stale portable
+copy next to a separate installation. Clicking Install update closes BitFly and its
+players through normal shutdown, persisting sessions and resume data. Sessions do
+not have to be removed before updating. The installer registers that folder as a
+per-user installation; ZIP users wanting to avoid registration can replace the
+extracted ZIP manually. No unattended overwrite or forced shutdown is performed
+by the service.
 
 This verifies integrity against the official HTTPS GitHub API. It is **not** an
 independent publisher-signature verification scheme: the application currently

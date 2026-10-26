@@ -28,10 +28,13 @@ changes apply on restart and never move or erase the previous folder. Never
 manually remove active session files. Disk quota pauses are recovered by freeing
 space, raising a justified quota or removing an inactive cache through the app.
 
-Updates are opt-in checks, at most once per hour, and never install binaries.
-The check reads GitHub's latest stable release, so prereleases are intentionally
-ignored; with only `v0.1.0-preview.1` published, a current preview installation
-has no stable update to offer. An offline/API error does not prevent local
+Updates check GitHub's latest stable release at every app launch and on manual
+request; prereleases are ignored. New compatible installers download automatically
+and are verified against GitHub's expected size and SHA-256. Install update applies
+the verified installer to the running app's folder, after normal session-saving
+shutdown; it does not require deleting active sessions. Installation remains a
+visible action and registers that folder as a per-user installation, including
+when launched from an extracted ZIP. An offline/API error does not prevent local
 playback. Invalid/newer database schemas produce a visible error; back up your
 data before downgrading versions.
 
