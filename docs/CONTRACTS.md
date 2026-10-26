@@ -114,11 +114,14 @@ SearchService, UpdateService and NetworkAssistant have detailed contracts,
 limits, licensing/source references and verification in INTEGRATIONS.md.
 Startup always checks stable updates on normal launches; a newer compatible
 installer is downloaded once per version/run or reused after digest validation.
-Installation is explicit and blocked while active sessions/players exist.
+Installation is explicit, targets the running app folder and uses normal shutdown
+to persist sessions and close owned players before replacement.
 Cloudflare startup only reads status; connect/disconnect/mode require actions.
 
 Pages are Library, Queue, Search, Settings. MediaCover starts circular and
-expands on image readiness, with reduced-motion behavior. Saved covers and
+expands across the card on image readiness, with its slot following the image
+height and reduced-motion behavior. Portrait artwork crops square and landscape
+artwork is bounded to 1.85:1. Saved covers and
 results are virtualized; image decoding is bounded. HelpDot works on hover and
 keyboard focus; controls preserve accessible names and visible focus.
 Stable test-facing names include navLibrary/navQueue/navSearch/navSettings,

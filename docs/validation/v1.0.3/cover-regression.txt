@@ -1,0 +1,1 @@
+Before fix: qml_smoke --scenario=dense exited27 because loaded cover width did not fill the card. After fix: square and widescreen full-width assertions, intermediate animation bounds and reduced-motion checks passed. Existing1000entry virtualization and keyboard/help tests passed. Screenshots use synthetic fixtures.

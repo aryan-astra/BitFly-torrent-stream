@@ -1,5 +1,35 @@
 # Validation status
 
+## 1.0.3 preview layout and release verification — 2026-10-26
+
+Preview cards now fill their available width and their layout follows square or
+landscape artwork, including the circle transition and reduced-motion behavior.
+Synthetic [library](screenshots/v1.0.3/library.png) and
+[active-session](screenshots/v1.0.3/session.png) renders were inspected. Existing
+1000-entry virtualization, keyboard navigation and help focus tests passed.
+
+The updater targets the running app folder and uses normal shutdown to persist
+sessions and close players. Its startup check and verified background download
+remain automatic; installation is a visible action. A new controller regression
+covers unavailable updates with active/paused sessions and preserved history.
+Five focused test groups passed in 14.28 seconds. Formatting and full application
+warning/portability analysis passed.
+
+The first complete suite passed 11 of 12 groups in 401.40 seconds. Controller
+failed without assertion output, then passed six diagnostic reruns (all eight
+cases). The failure is not considered resolved by rerunning. A signed follow-up
+commit makes Windows Qt test targets console executables to expose CI failures;
+a complete diagnostic rerun is in progress. Evidence, including the failed run,
+is retained under [validation/v1.0.3](validation/v1.0.3).
+
+Signed production commits and signed tag `v1.0.3` at `8b579a0` are pushed. The
+follow-up test-console change at `5de01db` changes no production source. The
+[cloud release workflow](https://github.com/aryan-astra/BitFly-torrent-stream/actions/runs/40341995240)
+is still in progress; publication requires both architecture builds/tests,
+package smoke checks and quality analysis. A separate cloud chat, “Monitor CI
+Progress”, has the handoff and is monitoring the run. No successful stable
+publication or production installer execution is claimed yet.
+
 ## 1.0.2 automatic preview recovery — 2026-10-26
 
 Partial MP4/MOV streams now prefetch the final 1 MiB (piece-aligned) for container

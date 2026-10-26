@@ -2,8 +2,8 @@
 
 These integrations use Qt's existing network/process APIs. BitFly does not add a
 browser engine, a Python plugin runner, a .NET service, or an embedded VPN stack.
-The service code is implemented; controller/QML integration and final validation
-are tracked in `REDESIGN_PLAN.md`.
+Controller/QML integration is implemented; validation evidence is tracked in
+`STATUS.md`.
 
 ## Torrent search
 

@@ -1,0 +1,15 @@
+Test project X:/Projects/Personal/BitFly/build
+    Start  7: services
+1/5 Test  #7: services .........................   Passed    0.54 sec
+    Start  8: controller
+2/5 Test  #8: controller .......................   Passed    7.81 sec
+    Start 10: qml_smoke
+3/5 Test #10: qml_smoke ........................   Passed    2.36 sec
+    Start 11: qml_search
+4/5 Test #11: qml_search .......................   Passed    1.52 sec
+    Start 12: qml_large_library
+5/5 Test #12: qml_large_library ................   Passed    2.05 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =  14.28 sec

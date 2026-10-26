@@ -2,7 +2,7 @@
 
 All notable user-visible changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). The first stable release is being prepared as 1.0.0.
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stable release builds are published from verified version tags.
 
 ## 1.0.3 — preview layout and update fixes
 

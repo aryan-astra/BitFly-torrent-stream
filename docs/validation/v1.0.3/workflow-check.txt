@@ -1,0 +1,3 @@
+Parsed 11 workflow PowerShell blocks.
+Verified both checksums; extracted portable native boot and offscreen render passed using packaged DLLs.
+Duplicate checksum and modified archive rejected; original package passed.

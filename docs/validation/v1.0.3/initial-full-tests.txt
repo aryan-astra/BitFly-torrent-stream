@@ -1,0 +1,34 @@
+Test project X:/Projects/Personal/BitFly/build
+      Start  1: http
+ 1/12 Test  #1: http .............................   Passed    1.36 sec
+      Start  2: torrent
+ 2/12 Test  #2: torrent ..........................   Passed    0.08 sec
+      Start  3: app
+ 3/12 Test  #3: app ..............................   Passed    0.75 sec
+      Start  4: integration
+ 4/12 Test  #4: integration ......................   Passed  156.85 sec
+      Start  5: recovery
+ 5/12 Test  #5: recovery .........................   Passed  118.24 sec
+      Start  6: lifecycle
+ 6/12 Test  #6: lifecycle ........................   Passed    2.08 sec
+      Start  7: services
+ 7/12 Test  #7: services .........................   Passed    0.74 sec
+      Start  8: controller
+ 8/12 Test  #8: controller .......................***Failed   17.23 sec
+
+      Start  9: previews
+ 9/12 Test  #9: previews .........................   Passed   97.14 sec
+      Start 10: qml_smoke
+10/12 Test #10: qml_smoke ........................   Passed    2.47 sec
+      Start 11: qml_search
+11/12 Test #11: qml_search .......................   Passed    1.57 sec
+      Start 12: qml_large_library
+12/12 Test #12: qml_large_library ................   Passed    2.23 sec
+
+92% tests passed, 1 tests failed out of 12
+
+Total Test time (real) = 401.40 sec
+
+The following tests FAILED:
+	  8 - controller (Failed)
+Errors while running CTest

@@ -1,0 +1,83 @@
+controller-diagnostic.txt
+********* Start testing of ControllerTests *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by GCC 13.1.0), windows 11
+PASS   : ControllerTests::initTestCase()
+PASS   : ControllerTests::retainsLibraryAndOwnsArtworkPaths()
+PASS   : ControllerTests::persistsSettingsAndCustomArtworkWithoutExposingSearchKey()
+PASS   : ControllerTests::preparesPreviewWithoutLaunchingPlayer()
+PASS   : ControllerTests::unavailableUpdateKeepsActiveAndPausedSessions()
+PASS   : ControllerTests::playerArgumentsUseDedicatedInstances()
+PASS   : ControllerTests::storageChangesWaitForAcceptanceAndFailedPurgeKeepsHistory()
+PASS   : ControllerTests::cleanupTestCase()
+Totals: 8 passed, 0 failed, 0 skipped, 0 blacklisted, 5829ms
+********* Finished testing of ControllerTests *********
+
+controller-repeat-1.txt
+********* Start testing of ControllerTests *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by GCC 13.1.0), windows 11
+PASS   : ControllerTests::initTestCase()
+PASS   : ControllerTests::retainsLibraryAndOwnsArtworkPaths()
+PASS   : ControllerTests::persistsSettingsAndCustomArtworkWithoutExposingSearchKey()
+PASS   : ControllerTests::preparesPreviewWithoutLaunchingPlayer()
+PASS   : ControllerTests::unavailableUpdateKeepsActiveAndPausedSessions()
+PASS   : ControllerTests::playerArgumentsUseDedicatedInstances()
+PASS   : ControllerTests::storageChangesWaitForAcceptanceAndFailedPurgeKeepsHistory()
+PASS   : ControllerTests::cleanupTestCase()
+Totals: 8 passed, 0 failed, 0 skipped, 0 blacklisted, 5727ms
+********* Finished testing of ControllerTests *********
+
+controller-repeat-2.txt
+********* Start testing of ControllerTests *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by GCC 13.1.0), windows 11
+PASS   : ControllerTests::initTestCase()
+PASS   : ControllerTests::retainsLibraryAndOwnsArtworkPaths()
+PASS   : ControllerTests::persistsSettingsAndCustomArtworkWithoutExposingSearchKey()
+PASS   : ControllerTests::preparesPreviewWithoutLaunchingPlayer()
+PASS   : ControllerTests::unavailableUpdateKeepsActiveAndPausedSessions()
+PASS   : ControllerTests::playerArgumentsUseDedicatedInstances()
+PASS   : ControllerTests::storageChangesWaitForAcceptanceAndFailedPurgeKeepsHistory()
+PASS   : ControllerTests::cleanupTestCase()
+Totals: 8 passed, 0 failed, 0 skipped, 0 blacklisted, 5799ms
+********* Finished testing of ControllerTests *********
+
+controller-repeat-3.txt
+********* Start testing of ControllerTests *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by GCC 13.1.0), windows 11
+PASS   : ControllerTests::initTestCase()
+PASS   : ControllerTests::retainsLibraryAndOwnsArtworkPaths()
+PASS   : ControllerTests::persistsSettingsAndCustomArtworkWithoutExposingSearchKey()
+PASS   : ControllerTests::preparesPreviewWithoutLaunchingPlayer()
+PASS   : ControllerTests::unavailableUpdateKeepsActiveAndPausedSessions()
+PASS   : ControllerTests::playerArgumentsUseDedicatedInstances()
+PASS   : ControllerTests::storageChangesWaitForAcceptanceAndFailedPurgeKeepsHistory()
+PASS   : ControllerTests::cleanupTestCase()
+Totals: 8 passed, 0 failed, 0 skipped, 0 blacklisted, 5942ms
+********* Finished testing of ControllerTests *********
+
+controller-repeat-4.txt
+********* Start testing of ControllerTests *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by GCC 13.1.0), windows 11
+PASS   : ControllerTests::initTestCase()
+PASS   : ControllerTests::retainsLibraryAndOwnsArtworkPaths()
+PASS   : ControllerTests::persistsSettingsAndCustomArtworkWithoutExposingSearchKey()
+PASS   : ControllerTests::preparesPreviewWithoutLaunchingPlayer()
+PASS   : ControllerTests::unavailableUpdateKeepsActiveAndPausedSessions()
+PASS   : ControllerTests::playerArgumentsUseDedicatedInstances()
+PASS   : ControllerTests::storageChangesWaitForAcceptanceAndFailedPurgeKeepsHistory()
+PASS   : ControllerTests::cleanupTestCase()
+Totals: 8 passed, 0 failed, 0 skipped, 0 blacklisted, 5833ms
+********* Finished testing of ControllerTests *********
+
+controller-repeat-5.txt
+********* Start testing of ControllerTests *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by GCC 13.1.0), windows 11
+PASS   : ControllerTests::initTestCase()
+PASS   : ControllerTests::retainsLibraryAndOwnsArtworkPaths()
+PASS   : ControllerTests::persistsSettingsAndCustomArtworkWithoutExposingSearchKey()
+PASS   : ControllerTests::preparesPreviewWithoutLaunchingPlayer()
+PASS   : ControllerTests::unavailableUpdateKeepsActiveAndPausedSessions()
+PASS   : ControllerTests::playerArgumentsUseDedicatedInstances()
+PASS   : ControllerTests::storageChangesWaitForAcceptanceAndFailedPurgeKeepsHistory()
+PASS   : ControllerTests::cleanupTestCase()
+Totals: 8 passed, 0 failed, 0 skipped, 0 blacklisted, 5809ms
+********* Finished testing of ControllerTests *********

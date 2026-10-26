@@ -1,0 +1,108 @@
+[0/2] Re-checking globbed directories...
+[1/2] Re-running CMake...
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- The following features have been enabled:
+
+ * dht, enable support for Mainline DHT
+ * deprecated-functions, enable deprecated functions for backwards compatibility
+ * encryption, Enables encryption in libtorrent
+ * exceptions, build with exception support
+ * extensions, Enables protocol extensions
+ * i2p, build with I2P support
+ * logging, build with logging
+ * mutable-torrents, Enables mutable torrent support
+ * streaming, Enables support for piece deadline
+
+-- The following OPTIONAL packages have been found:
+
+ * Qt6Core (required version >= 6.8)
+ * Qt6CoreTools (required version >= 6.8.3)
+ * Qt6GuiTools (required version >= 6.8.3)
+ * Qt6Gui (required version >= 6.8)
+ * Qt6QuickTools (required version >= 6.8.3)
+ * Qt6QmlTools (required version >= 6.8.3)
+ * Qt6Quick (required version >= 6.8)
+ * Qt6QuickControls2 (required version >= 6.8)
+ * Qt6Sql (required version >= 6.8)
+ * Qt6Test (required version >= 6.8)
+
+-- The following RECOMMENDED packages have been found:
+
+ * OpenSSL, Full-strength general purpose cryptography library, <https://www.openssl.org/>
+   Provides HTTPS support to libtorrent
+
+-- The following REQUIRED packages have been found:
+
+ * Qt6 (required version >= 6.8)
+ * Threads
+ * Boost
+
+-- The following features have been disabled:
+
+ * BUILD_SHARED_LIBS, build libtorrent as a shared library
+ * static_runtime, build libtorrent with static runtime
+ * build_tests, build tests
+ * build_examples, build examples
+ * build_tools, build tools
+ * python-bindings, build python bindings
+ * python-egg-info, generate python egg info
+ * python-install-system-dir, Install python bindings to the system installation directory rather than the CMake installation prefix
+ * gnutls, build using GnuTLS instead of OpenSSL
+
+-- The following OPTIONAL packages have not been found:
+
+ * WrapVulkanHeaders
+
+-- Configuring done (24.6s)
+-- Generating done (1.2s)
+-- Build files have been written to: X:/Projects/Personal/BitFly/build
+[0/4] Re-checking globbed directories...
+[1/88] Automatic MOC and UIC for target bitfly_rules
+[2/86] Automatic MOC and UIC for target bitfly_stream
+[3/84] Automatic MOC and UIC for target bitfly_torrent
+[4/82] Automatic MOC and UIC for target bitfly_platform
+[5/80] Automatic MOC and UIC for target bitfly_app
+[6/80] Building CXX object CMakeFiles/bitfly_app.dir/bitfly_app_autogen/mocs_compilation.cpp.obj
+[7/80] Building CXX object CMakeFiles/bitfly_app.dir/src/app/ApplicationController.cpp.obj
+[8/80] Linking CXX static library libbitfly_app.a
+[9/80] Automatic MOC and UIC for target BitFly
+[10/80] Running AUTOMOC file extraction for target BitFly
+[11/80] Running moc --collect-json for target BitFly
+[12/64] Automatic MOC and UIC for target http_tests
+[13/62] Automatic MOC and UIC for target torrent_tests
+[14/60] Automatic MOC and UIC for target app_tests
+[15/59] Automatic MOC and UIC for target integration_tests
+[16/57] Automatic MOC and UIC for target services_tests
+[17/55] Automatic MOC and UIC for target controller_tests
+[18/54] Automatic MOC and UIC for target preview_tests
+[19/53] Automatic MOC and UIC for target qml_smoke
+[20/51] Building CXX object CMakeFiles/BitFly.dir/BitFly_autogen/mocs_compilation.cpp.obj
+[21/51] Building CXX object CMakeFiles/BitFly.dir/src/main.cpp.obj
+[22/51] Building CXX object CMakeFiles/BitFly.dir/build/.qt/rcc/qrc_branding.cpp.obj
+[23/51] Building CXX object CMakeFiles/BitFly.dir/bitfly_qmltyperegistrations.cpp.obj
+[24/51] Building CXX object CMakeFiles/BitFly.dir/build/.qt/rcc/qrc_qmake_BitFly.cpp.obj
+[25/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qmlcache_loader.cpp.obj
+[26/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/HelpDot_qml.cpp.obj
+[27/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/IconButton_qml.cpp.obj
+[28/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/LinkButton_qml.cpp.obj
+[29/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/Main_qml.cpp.obj
+[30/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/MediaCover_qml.cpp.obj
+[31/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/NavIcon_qml.cpp.obj
+[32/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/NavItem_qml.cpp.obj
+[33/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/PosterCard_qml.cpp.obj
+[34/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/QuietButton_qml.cpp.obj
+[35/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/SearchPage_qml.cpp.obj
+[36/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/SessionCard_qml.cpp.obj
+[37/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/SettingRow_qml.cpp.obj
+[38/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/SettingSpinBox_qml.cpp.obj
+[39/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/SettingsCard_qml.cpp.obj
+[40/51] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/Theme_qml.cpp.obj
+[41/51] Building CXX object CMakeFiles/BitFly.dir/build/.qt/rcc/qrc_BitFly_raw_qml_0.cpp.obj
+[42/51] Building CXX object CMakeFiles/BitFly.dir/build/.qt/rcc/qrc_BitFly_raw_qml_0_extra_qmldirs.cpp.obj
+[43/51] Building CXX object CMakeFiles/BitFly.dir/build/.qt/rcc/qrc_artwork.cpp.obj
+[44/51] Building RC object CMakeFiles/BitFly.dir/packaging/BitFly.rc.obj
+[45/51] Linking CXX executable BitFly.exe
+[46/51] Linking CXX executable app_tests.exe
+[47/51] Linking CXX executable controller_tests.exe
+[48/51] Linking CXX executable preview_tests.exe
