@@ -1,0 +1,15 @@
+********* Start testing of IntegrationTests *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by GCC 13.1.0), windows 11
+PASS   : IntegrationTests::initTestCase()
+QINFO  : IntegrationTests::realLibtorrentStreamsRangesAndRestores(v1-corrupt-resume) INTEGRATION_INPUT mode=v1 kind=torrent-file input=C:/Users/Ryan/AppData/Local/Temp/integration_tests-FygMRk/fixture.torrent
+QINFO  : IntegrationTests::realLibtorrentStreamsRangesAndRestores(v1-corrupt-resume) INTEGRATION_METRICS mode=v1 downloaded_at_stream_ready=3702784 seek_ranges_ms=7997
+PASS   : IntegrationTests::realLibtorrentStreamsRangesAndRestores(v1-corrupt-resume)
+QINFO  : IntegrationTests::realLibtorrentStreamsRangesAndRestores(v2-corrupt-resume) INTEGRATION_INPUT mode=v2 kind=magnet input=magnet:?xt=urn:btmh:12207e03bd7e8b6ff9c355547e43a176609ebeb6912f417ea54a597cc6bbd08dda6f&dn=fixture.wav&tr=http%3a%2f%2f127.0.0.1%3a11928%2fannounce&x.pe=127.0.0.1:11929
+FAIL!  : IntegrationTests::realLibtorrentStreamsRangesAndRestores(v2-corrupt-resume) 'response.error.isEmpty()' returned FALSE. (Timed out waiting for the range response.)
+X:/Projects/Personal/BitFly/tests/integration_tests.cpp(619) : failure location
+QINFO  : IntegrationTests::realLibtorrentStreamsRangesAndRestores(v1-quota) INTEGRATION_INPUT mode=v1 kind=torrent-file input=C:/Users/Ryan/AppData/Local/Temp/integration_tests-zPnwzM/fixture.torrent
+QINFO  : IntegrationTests::realLibtorrentStreamsRangesAndRestores(v1-quota) INTEGRATION_METRICS mode=v1 downloaded_at_stream_ready=3424256 seek_ranges_ms=7381
+PASS   : IntegrationTests::realLibtorrentStreamsRangesAndRestores(v1-quota)
+PASS   : IntegrationTests::cleanupTestCase()
+Totals: 4 passed, 1 failed, 0 skipped, 0 blacklisted, 146931ms
+********* Finished testing of IntegrationTests *********

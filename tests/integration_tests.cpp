@@ -616,7 +616,28 @@ class IntegrationTests final : public QObject {
             {MediaSize - 32768, MediaSize - 1}};
         for (const auto& range : ranges) {
             const HttpResult response = getRange(streamUrl, range.first, range.second);
-            QVERIFY2(response.error.isEmpty(), qPrintable(response.error));
+            QVERIFY2(
+                response.error.isEmpty(),
+                qPrintable(
+                    QStringLiteral("%1 range=%2-%3 received=%4 snapshot=%5 "
+                                   "seederPeers=%6 engineDiagnostics=%7 seedDiagnostics=%8")
+                        .arg(response.error)
+                        .arg(range.first)
+                        .arg(range.second)
+                        .arg(response.body.size())
+                        .arg(QString::fromUtf8(
+                            QJsonDocument::fromVariant(findSession(latestSessions, id))
+                                .toJson(QJsonDocument::Compact)))
+                        .arg(seedHandle.status().num_peers)
+                        .arg([&] {
+                            QStringList values;
+                            for (const auto& value : engineDiagnostics)
+                                values.append(value.value(0).toString());
+                            return values.mid(qMax<qsizetype>(0, values.size() - 20))
+                                .join(QStringLiteral(" | "));
+                        }())
+                        .arg(seedDiagnostics.mid(qMax<qsizetype>(0, seedDiagnostics.size() - 20))
+                                 .join(QStringLiteral(" | ")))));
             QCOMPARE(response.status, 206);
             QCOMPARE(response.body, expected.mid(range.first, range.second - range.first + 1));
         }

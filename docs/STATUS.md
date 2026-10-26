@@ -17,18 +17,32 @@ warning/portability analysis passed.
 
 The first complete suite passed 11 of 12 groups in 401.40 seconds. Controller
 failed without assertion output, then passed six diagnostic reruns (all eight
-cases). The failure is not considered resolved by rerunning. A signed follow-up
-commit makes Windows Qt test targets console executables to expose CI failures;
-a complete diagnostic rerun is in progress. Evidence, including the failed run,
-is retained under [validation/v1.0.3](validation/v1.0.3).
+cases). The next complete run passed 11 of 12 groups in 428.31 seconds; controller
+passed but recovery failed. Explicit per-group Qt result files then captured a
+v2 byte-range timeout in the initial HTTP range loop, before resume corruption.
+A standalone three-row recovery run passed in 118.889 seconds and a focused v2
+row passed in 42.263 seconds. These reruns do not resolve the intermittent failure.
+The console-target flag alone did not restore captured output on this host; Qt
+file logs and failure-only CI artifact uploads now preserve diagnostics. Range
+assertions include bounds, received bytes, snapshots and bounded peer diagnostics.
+All evidence is retained under [validation/v1.0.3](validation/v1.0.3).
 
-Signed production commits and signed tag `v1.0.3` at `8b579a0` are pushed. The
-follow-up test-console change at `5de01db` changes no production source. The
+Signed production commits and signed tag `v1.0.3` at `8b579a0` are pushed. Subsequent
+main commits change tests, diagnostic uploads and documentation only. The
 [cloud release workflow](https://github.com/aryan-astra/BitFly-torrent-stream/actions/runs/40341995240)
-is still in progress; publication requires both architecture builds/tests,
-package smoke checks and quality analysis. A separate cloud chat, “Monitor CI
-Progress”, has the handoff and is monitoring the run. No successful stable
-publication or production installer execution is claimed yet.
+completed successfully on x64 and ARM64, including build, tests, package smoke,
+checksums and quality analysis. GitHub published the non-prerelease
+[stable v1.0.3 release](https://github.com/aryan-astra/BitFly-torrent-stream/releases/tag/v1.0.3)
+with installers, ZIPs and checksum manifests for both architectures. Publication
+finished before the local hold request; a cancellation attempt returned409 because
+the run was already complete. No tag was moved and no release asset was removed.
+
+The cloud chat, “Monitor CI Progress”, has the reproduced local timeout and is
+continuing verification/investigation independently. There is no blanket claim
+that the app or test suite is issue-free. Production installer replacement and
+relaunch were not executed locally; installation remains explicit after automatic
+checking and verified download.
+
 
 ## 1.0.2 automatic preview recovery — 2026-10-26
 
