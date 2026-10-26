@@ -1,120 +1,140 @@
-# BitFly
+![BitFly — a little less waiting. Paper clouds, film frames and a coral magnet in a blue sky.](docs/branding/bitfly-banner.png)
 
-[![Release](https://img.shields.io/github/v/release/aryan-astra/BitFly-torrent-stream?include_prereleases&label=release&style=flat-square)](https://github.com/aryan-astra/BitFly-torrent-stream/releases)
-[![Windows CI](https://github.com/aryan-astra/BitFly-torrent-stream/actions/workflows/windows.yml/badge.svg?branch=main)](https://github.com/aryan-astra/BitFly-torrent-stream/actions/workflows/windows.yml)
-[![Source quality](https://github.com/aryan-astra/BitFly-torrent-stream/actions/workflows/source-checks.yml/badge.svg?branch=main)](https://github.com/aryan-astra/BitFly-torrent-stream/actions/workflows/source-checks.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+# <img src="qml/assets/bitfly-mark.png" width="34" height="34" alt=""> BitFly
 
-BitFly is a native Windows application for streaming torrent video in your
-installed external player (VLC by default; mpv and MPC-HC/BE are supported).
-Open a magnet link or a `.torrent` file, choose a media file, and the player reads a local
-token-protected HTTP stream while libtorrent fetches the pieces that playback
-needs.
+**Press play before the download is done.**
 
-![BitFly running on Windows 11 x64](docs/screenshots/windows-x64.png)
+Found something to watch? Paste its magnet link, choose the video, and press **Play**. BitFly brings the pieces together while your media player handles the screen. When you're done, your links, file selections and artwork have a little home to come back to.
 
-> **Local v1 candidate.** This working tree prepares version 1.0.3 with the new
-> library, white cloud interface, search and update controls. It has not been
-> pushed or published. The downloads below remain `v0.1.0-preview.1`, for evaluation, not as
-> a stable or production-certified release. The binaries are not Authenticode
-> signed, so Windows may show a publisher warning. See
-> [validation status](docs/STATUS.md) for executed checks, evidence, and the
-> remaining release gates.
+Built for Windows in C++ and Qt Quick. VLC, mpv and MPC-HC/BE are welcome.
 
-## Download
+[![Stable release](https://img.shields.io/github/v/release/aryan-astra/BitFly-torrent-stream?label=stable&style=flat-square&color=ad4739)](https://github.com/aryan-astra/BitFly-torrent-stream/releases/latest) [![Windows builds](https://github.com/aryan-astra/BitFly-torrent-stream/actions/workflows/windows.yml/badge.svg)](https://github.com/aryan-astra/BitFly-torrent-stream/actions/workflows/windows.yml) [![Windows x64 and ARM64](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-779bb1?style=flat-square)](https://github.com/aryan-astra/BitFly-torrent-stream/releases/latest) [![MIT license](https://img.shields.io/badge/license-MIT-303744?style=flat-square)](LICENSE)
 
-The current prerelease is [v0.1.0-preview.1](https://github.com/aryan-astra/BitFly-torrent-stream/releases/tag/v0.1.0-preview.1).
+[Get BitFly](#get-bitfly) · [Take a look](#a-little-home-for-what-you-watch) · [How it works](#under-the-clouds) · [Build it](#for-developers)
 
-| Platform | Installer (per-user) | Portable ZIP | Checksums |
+## Get BitFly
+
+**[Latest stable release →](https://github.com/aryan-astra/BitFly-torrent-stream/releases/latest)**
+
+| Windows PC | Installer | Portable | Checksum |
 | --- | --- | --- | --- |
-| Windows x64 | [BitFly 0.1.0 x64 setup (29.7 MB)](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v0.1.0-preview.1/BitFly-0.1.0-windows-x64-setup.exe) | [BitFly 0.1.0 x64 ZIP (44.4 MB)](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v0.1.0-preview.1/BitFly-0.1.0-windows-x64.zip) | [x64 SHA-256](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v0.1.0-preview.1/BitFly-0.1.0-windows-x64-SHA256SUMS.txt) |
-| Windows ARM64 | [BitFly 0.1.0 ARM64 setup (20.6 MB)](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v0.1.0-preview.1/BitFly-0.1.0-windows-arm64-setup.exe) | [BitFly 0.1.0 ARM64 ZIP (30.7 MB)](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v0.1.0-preview.1/BitFly-0.1.0-windows-arm64.zip) | [ARM64 SHA-256](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v0.1.0-preview.1/BitFly-0.1.0-windows-arm64-SHA256SUMS.txt) |
+| **x64** · most Intel / AMD PCs | [Installer](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64-setup.exe) | [Portable ZIP](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64.zip) | [SHA-256](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64-SHA256SUMS.txt) |
+| **ARM64** · Windows on Arm PCs | [Installer](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64-setup.exe) | [Portable ZIP](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64.zip) | [SHA-256](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64-SHA256SUMS.txt) |
 
-The installer runs without administrator rights, installs under
-`%LOCALAPPDATA%\Programs\BitFly`, and can be removed from Windows Settings. The
-portable ZIP contains the same application and needs no installation. Unpack it
-to a folder you control and run `BitFly.exe`.
+Downloads above are **v1.0.3**. The installer works per user without administrator rights. Prefer a folder you can move around? Unzip the portable build and run `BitFly.exe`; no installation is needed. Preferences and library state still live in your Windows user profile.
 
-Verify a download before running it:
+You'll need **Windows 10 1809+ on x64, or Windows 11 on x64 / ARM64**, and an installed supported player. **VLC 3.x** is the simplest starting point and is also needed for video-frame previews. Players are installed separately.
 
-```powershell
-Get-FileHash .\BitFly-0.1.0-windows-x64.zip -Algorithm SHA256
-Get-Content .\BitFly-0.1.0-windows-x64-SHA256SUMS.txt
-```
+Release EXEs are not Authenticode signed; Windows may show an unknown-publisher warning. Git signatures and download checksums are separate from Windows publisher signing.
 
-## Requirements
+<details>
+<summary>Check a download's SHA-256</summary>
 
-- Windows 10 version 1809 or later (x64), Windows 11 (x64), or Windows 11 on
-  ARM64. Windows 11 x64 is the validated development host; the other targets
-  have the validation gaps recorded in [STATUS.md](docs/STATUS.md).
-- An installed VLC 3.x, mpv or MPC-HC/BE player. Choose its executable in
-  Settings. VLC is additionally needed for optional frame previews. Players
-  are not bundled or automatically installed.
-- Media you are authorized to access and share. Optional search connects to
-  your configured Jackett/Prowlarr Torznab feed. BitFly supplies no catalog
-  or DRM circumvention.
-
-## Use
-
-1. Install or unpack BitFly, then start it. If VLC is not detected, choose
-   a supported player in **Settings**.
-2. Paste a magnet link on the **Library** page, or choose **Open .torrent**.
-3. Select a playable file and press **Play**. *Preparing* means BitFly is still
-   retrieving the pieces needed to start. VLC opens once the initial verified
-   range is available.
-4. Playback continues while BitFly downloads ahead of VLC's requests. Seeking
-   changes the requested byte ranges and reprioritizes pieces.
-
-Use **Queue** to line up files for the next VLC session and **Library** to relaunch
-a previous stream from its saved magnet and selection. Queue and library survive a restart. State is saved
-transactionally, and torrent resume data is reused where available; playback
-always requires an explicit launch.
-
-When an owned VLC window closes, BitFly asks whether to **Keep** the data,
-**Delete** it, or **Seed** temporarily. Keeping data pauses network activity;
-deleting requires confirmation and affects only that managed cache entry; further seeding
-requires an explicit choice and has a configurable duration (default 0).
-
-## Features
-
-- Magnet links and `.torrent` files, including v1, v2, and hybrid torrents.
-- Range-driven piece scheduling with verified-only reads; HTTP never serves
-  unverified bytes or invents data when the swarm is slow.
-- A loopback HTTP server with an unpredictable per-session token, strict host
-  validation, and no filesystem paths in URLs.
-- Playable-file selection, multiple sessions, pausing, and removal.
-- Persistent queue, media library/artwork, preferences, and libtorrent resume state in
-  local SQLite storage.
-- Cache quota admission, bounded temporary seeding, retained data, and
-  user-confirmed deletion of managed data.
-- Native C++20/Qt Quick white interface, 3D sidebar icons, short cover/hover
-  transitions, reduced motion and a virtualized library.
-- Custom artwork and optional bounded frame previews through installed VLC.
-- Selectable storage folder, supported network/discovery limits, and optional
-  Torznab search with Windows-account-protected API keys.
-- Installed Cloudflare client controls; no bundled VPN or automatic network changes.
-- Stable update checks on each launch, background size/hash-verified downloads,
-  and an explicit install action. No telemetry or BitFly account.
-
-## How it works
-
-```text
-VLC  ──HTTP byte ranges──▶  loopback server  ──▶  scheduler + verified cache  ──▶  libtorrent
-```
-
-The Qt Quick UI, controller, and persistence run on the GUI thread. One worker
-thread owns libtorrent, the piece cache, scheduling, and the HTTP server.
-Owned VLC processes are launched with the local stream URL and remain external to
-BitFly. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the ADR and
-[docs/CONTRACTS.md](docs/CONTRACTS.md) for interface boundaries.
-
-## Build and test
-
-BitFly builds with CMake, Qt 6.8.3, libtorrent 2.0.11, Boost 1.86, and OpenSSL.
-Local development uses MinGW 13.1; CI builds native MSVC x64 and ARM64 packages on
-Windows runners.
+Download the matching checksum file, then compare its value with:
 
 ```powershell
+Get-FileHash .\BitFly-1.0.3-windows-x64.zip -Algorithm SHA256
+Get-Content .\BitFly-1.0.3-windows-x64-SHA256SUMS.txt
+```
+
+</details>
+
+## Your first stream
+
+1. **Make yourself at home.** Open BitFly. If your player isn't detected, choose its executable in **Settings**.
+2. **Bring something to watch.** Paste a magnet link or choose **Open .torrent**, then select the video you want.
+3. **Press Play.** Your player opens when the starting pieces are verified. BitFly keeps downloading ahead as it plays; seeking asks for a different range of the file.
+
+BitFly supports **v1, v2 and hybrid torrents**. Playback depends on the swarm: healthy peers help; a quiet or unavailable swarm can still leave you waiting.
+
+## A little home for what you watch
+
+![BitFly's cloud-themed library with square and landscape covers, saved streams and sidebar controls.](docs/screenshots/v1.0.3/library.png)
+
+*Interface preview with sample library entries. Covers and controls are rendered by the app's QML components.*
+
+- **Active sessions stay close.** File selection, download progress, buffer state and player controls sit together.
+- **Your library remembers.** Magnets, selected files and artwork survive a restart. Entries with retained files stay bright; saved links without local data are dimmed. **Stream again** reopens the saved entry.
+- **Covers get some room.** Optional VLC frame previews open out from a circle into a square or landscape cover. You can choose your own artwork or refresh a frame from the card's menu.
+- **The queue keeps your place in line.** Add files, reorder them, and launch the next one from one place. The queue survives a restart too.
+
+The interface keeps its blue skies, paper clouds and small tactile icons, with short transitions and a reduced-motion setting. Hover over a question mark—or focus it with the keyboard—for an explanation of a setting.
+
+## When the credits roll
+
+Close a player launched by BitFly and choose what happens next:
+
+| Choice | What happens |
+| --- | --- |
+| **Keep** | Retain the downloaded data and pause the session's network activity. |
+| **Delete** | Remove that session's managed data after confirmation. Its saved library entry and artwork can stay. |
+| **Seed** | Keep sharing for the duration you choose. Extra seeding is an explicit choice. |
+
+Removing a library entry is a separate action and removes its saved artwork too. BitFly only cleans up data inside its own managed session folders.
+
+## Room for your setup
+
+| In Settings | Make it yours |
+| --- | --- |
+| **Player** | Use VLC, mpv, or MPC-HC/BE. Playback stays in that external app. |
+| **Storage** | Choose a download folder and a cache quota. A folder change applies to new sessions; active ones keep their existing location. |
+| **Connections** | Set download/upload limits, peer slots, discovery controls and how far ahead BitFly prioritizes pieces. |
+| **Search** | Connect your own Jackett/Prowlarr Torznab feed. Its indexers supply the results; BitFly doesn't provide a torrent catalog. |
+| **Cloudflare** | Control a separately installed compatible Cloudflare client. Nothing is bundled or connected automatically. |
+| **Updates** | Check each time BitFly starts and download newer stable installers in the background. Size and SHA-256 are verified; **Install update** saves sessions and closes BitFly before updating its current folder. |
+
+[Integration details →](docs/INTEGRATIONS.md)
+
+<details>
+<summary>Can it keep deleting played pieces to fit a movie into less disk space?</summary>
+
+Not currently. Read-ahead controls which pieces receive priority; it doesn't turn the download into a rolling, self-deleting disk buffer. Selected media must fit the managed quota and available disk space. Use a larger download folder, raise the quota when there is room, or remove retained data you no longer need.
+
+</details>
+
+<details>
+<summary>Does the portable version stay portable when updating?</summary>
+
+The ZIP can run without installation. The in-app updater uses the installer and targets the running app's folder, registering it as a per-user installation. To keep using the ZIP without that registration, replace it manually with a new portable download. Library and preferences remain in your Windows user profile.
+
+</details>
+
+## Under the clouds
+
+Your player asks for bytes. BitFly fetches the corresponding torrent pieces and serves them only after libtorrent has verified them.
+
+```mermaid
+flowchart LR
+    player["Your media player"] -->|"HTTP byte ranges"| stream["Local stream"]
+    stream -->|"Piece demand"| engine["libtorrent + verified cache"]
+    engine <-->|"Torrent pieces"| swarm["The swarm"]
+    classDef paper fill:#eef2f7,stroke:#779bb1,color:#1b2028;
+    classDef coral fill:#f8e9e3,stroke:#ad4739,color:#1b2028;
+    class player,swarm paper;
+    class stream,engine coral;
+```
+
+The stream listens on loopback, uses an unpredictable session token and validates the host. It exposes stream IDs rather than filesystem paths. The UI and SQLite state live on the GUI thread; one worker owns the torrent engine, verified cache and HTTP server. Preview capture uses a bounded queue and one owned VLC decoder.
+
+No BitFly account, ads or telemetry. Your library and preferences stay on your PC. Torrent peers, trackers, configured search services and GitHub update checks still make their normal network connections. Search API keys are protected with your Windows account.
+
+[Architecture](docs/ARCHITECTURE.md) · [Interface contracts](docs/CONTRACTS.md) · [Storage and cleanup](docs/CONTRACTS.md#engine-and-storage)
+
+## For developers
+
+**C++20 · Qt 6.8.3 / Qt Quick · libtorrent 2.0.11 · Boost 1.86 · OpenSSL · SQLite**
+
+Use the compiler that matches your Qt kit. Local development uses MinGW 13.1; GitHub Actions builds and tests native MSVC packages for x64 and ARM64. A version tag matching CMake triggers the release pipeline, including package smoke tests and checksum checks before publication.
+
+<details>
+<summary>Build locally with the MinGW Qt kit</summary>
+
+Install the matching Qt kit and dependencies first, then adjust these paths:
+
+```powershell
+git clone https://github.com/aryan-astra/BitFly-torrent-stream.git
+cd BitFly-torrent-stream
+$env:PATH="C:\Qt\Tools\mingw1310_64\bin;C:\Qt\6.8.3\mingw_64\bin;$env:PATH"
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
   -DCMAKE_PREFIX_PATH=C:/Qt/6.8.3/mingw_64 `
   -DBITFLY_LIBTORRENT_SOURCE=C:/deps/libtorrent `
@@ -122,48 +142,23 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
   -DOPENSSL_ROOT_DIR=C:/deps/openssl
 cmake --build build --parallel 1
 ctest --test-dir build --output-on-failure
+.\build\BitFly.exe
 ```
 
-See [docs/BUILD.md](docs/BUILD.md) for dependency versions and alternative
-toolchains, and [docs/TESTING.md](docs/TESTING.md) for the HTTP, scheduler,
-persistence, QML, integration, VLC-decode, and packaged-app checks. The
-integration suite uses local deterministic torrents and does not require a public
-swarm.
+[Build guide](docs/BUILD.md) covers dependency setup and other toolchains. The integration tests use synthetic media and a local seeder.
 
-## Status and limitations
+</details>
 
-The new candidate and older public preview have separate validation records:
+[Testing](docs/TESTING.md) · [Contributing](CONTRIBUTING.md) · [Release process](docs/RELEASE.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-- Local x64 validation includes real-torrent streaming in v1, v1-magnet,
-  v2-magnet, and hybrid modes, verified HTTP ranges, restart/resume, and audio
-  decoded through the actual tokenized HTTP URL by external VLC.
-- The prior preview passed native x64/ARM64 CI packaging and startup. Those
-  runs do not validate this unpushed v1 source; fresh release CI remains a gate.
-- Physical Windows 11 ARM64 VLC playback, physical Windows 10 testing, sustained
-  concurrent playback, disk-full/crash fault injection, screen-reader review,
-  and controlled cold-start benchmarks remain outstanding.
-- The streaming evidence comes from one local seeder and one media fixture, not a
-  public swarm at scale.
-- Binaries are unsigned and have no stable security-maintenance commitment yet.
-- Exact VLC playback position is not tracked or restored. BitFly does not bundle
-  a player, indexer, or Cloudflare client, find subtitles, or bypass DRM.
-- Updates use GitHub's latest **stable** release and ignore prereleases.
-  Integrity trusts the official HTTPS API digest; no independent publisher
-  signing identity or silent unattended install is implied.
+## The edges we're still working on
 
-The authoritative evidence and release gates are in [docs/STATUS.md](docs/STATUS.md).
-Do not treat a screenshot or a successful launch as proof of a platform or
-codec path that is not listed there.
+The stable x64 and ARM64 release passed hosted build, test and package checks. Local Windows runs have also exposed intermittent controller/recovery failures, including a v2 byte-range timeout; those remain under investigation. Physical Windows 10 / ARM64 VLC playback and a real installer upgrade haven't been fully validated. [Validation notes and evidence](docs/STATUS.md) keep that distinction visible.
 
-## Contributing
+BitFly doesn't track an external player's exact playback position. It doesn't bundle a player, indexer or VPN, and it doesn't bypass DRM. Use torrents you have the right to access and share. Please report bugs through [Issues](https://github.com/aryan-astra/BitFly-torrent-stream/issues); report security problems privately using [SECURITY.md](SECURITY.md).
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Changes
-need focused tests and a clear description of user-visible behavior. Report
-security issues privately according to [SECURITY.md](SECURITY.md), and never post
-private torrents, credentials, or personal paths in a public issue.
+---
 
-## License
+Made by [Aryan Shukla](https://github.com/aryan-astra), with C++ and a little cloud cover.
 
-BitFly is released under the [MIT License](LICENSE). Dependencies keep their own
-licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
-[docs/RELEASE.md](docs/RELEASE.md) for packaging and redistribution details.
+[MIT licensed](LICENSE). Dependency licenses and redistribution notes are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). [Banner artwork and prompt](docs/branding/banner-prompt.md).
