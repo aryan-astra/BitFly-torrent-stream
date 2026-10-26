@@ -132,6 +132,8 @@ if(BUILD_TESTING)
   add_test(NAME qml_search COMMAND qml_smoke --scenario=search --page=Search)
   add_test(NAME qml_large_library COMMAND qml_smoke --scenario=large-library)
   set_tests_properties(qml_search qml_large_library PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  set_target_properties(services_tests controller_tests preview_tests qml_smoke
+    PROPERTIES WIN32_EXECUTABLE FALSE)
 endif()
 install(TARGETS BitFly RUNTIME DESTINATION .)
 install(FILES LICENSE THIRD_PARTY_NOTICES.md README.md DESTINATION .)
