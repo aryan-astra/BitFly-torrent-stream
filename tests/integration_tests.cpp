@@ -795,6 +795,19 @@ class IntegrationTests final : public QObject {
             QVERIFY2(fallbackObserved, "Corrupt resume must use stored metadata, not stale state.");
         }
         if (mode == "v1" && fault.isEmpty()) {
+            const qint64 firstOffset = 3 * 1024 * 1024, secondOffset = 6 * 1024 * 1024;
+            QVERIFY(restored->readVerified(id + "/0", firstOffset, 4096).isEmpty());
+            QVERIFY(restored->readVerified(id + "/0", secondOffset, 4096).isEmpty());
+            restored->demand(id + "/0", firstOffset, 64 * 1024);
+            restored->demand(id + "/0", secondOffset, 64 * 1024);
+            QTRY_VERIFY_WITH_TIMEOUT(
+                !restored->readVerified(id + "/0", firstOffset, 4096).isEmpty() &&
+                    !restored->readVerified(id + "/0", secondOffset, 4096).isEmpty(),
+                60000);
+            QCOMPARE(restored->readVerified(id + "/0", firstOffset, 4096),
+                     expected.mid(firstOffset, 4096));
+            QCOMPARE(restored->readVerified(id + "/0", secondOffset, 4096),
+                     expected.mid(secondOffset, 4096));
             QSignalSpy removed(restored.get(), &bitfly::TorrentEngine::removalFinished);
             restored->remove(id, true);
             QTRY_COMPARE_WITH_TIMEOUT(removed.count(), 1, 10000);

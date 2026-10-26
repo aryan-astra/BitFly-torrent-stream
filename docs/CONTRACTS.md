@@ -38,7 +38,10 @@ DHT/LSD on and UPnP/NAT-PMP off. Existing stored preferences remain respected.
 Read-ahead is 8 MiB..8 GiB, additionally capped 4096 pieces. It bounds network
 priority, not total disk storage. Requested verified disk reads cover only the
 HTTP/startup demand (up to 2 MiB per scheduling request), not all future deadlines.
-The verified RAM cache remains 64 MiB. Quota/free-space pressure pauses/admission
+The verified RAM cache remains 64 MiB. Pending reads from concurrent HTTP clients
+are coalesced in a bounded set; completed verified replies survive priority-window
+changes. MP4/MOV startup also prioritizes the final 1 MiB (piece-aligned), because
+container metadata may be at EOF. Quota/free-space pressure pauses/admission
 rejects data rather than deleting active pieces. No exact playback time or
 five-minute rolling disk eviction is inferred from byte offsets.
 
@@ -97,7 +100,10 @@ one owned decoder at a time and at most 16 queued jobs. Metadata arrival can
 select a video for preview preparation without launching a player; paused
 sessions and saved selections are respected. Capture samples 30–90 seconds in,
 rejects blank frames, and falls back to the opening if seeking fails. Each
-attempt has a 12-second deadline; one buffered retry runs after 30 seconds.
+attempt has a 45-second deadline. After failure, new downloaded data can trigger
+a retry after 30 seconds, with subsequent delays increasing to five minutes.
+Completed/custom artwork is retained. Preview status is transient model state,
+not a claim that the generated fallback is a decoded movie frame.
 Output is dimension/size validated before atomic replacement. URLs/tokens are
 transient; deletion cancels pending captures. Audio/unsupported/failed captures
 keep local generated artwork. `thumbnailKind` is generated/frame/custom.

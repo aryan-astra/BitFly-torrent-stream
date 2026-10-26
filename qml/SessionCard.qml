@@ -73,6 +73,17 @@ Rectangle {
             source: String(root.session.thumbnail || "")
         }
 
+        Label {
+            Layout.fillWidth: true
+            visible: text.length > 0
+            objectName: "previewStatus_" + root.session.id
+            text: root.session.previewStatus || ""
+            wrapMode: Text.Wrap
+            color: Theme.secondary
+            font.family: Theme.fontFamily
+            font.pixelSize: 12
+        }
+
         ColumnLayout {
             Layout.fillWidth: true
             Layout.minimumWidth: 0

@@ -11,6 +11,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QtEndian>
 #include <libtorrent/add_torrent_params.hpp>
 #include <libtorrent/bencode.hpp>
 #include <libtorrent/create_torrent.hpp>
@@ -88,14 +89,47 @@ class PreviewTests final : public QObject {
         QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 1, 30000);
         QVERIFY(PreviewCapture::usefulFrame(QImage(path)));
     }
+    void addedTorrentGetsMovieThumbnailWithoutPressingPlay_data() {
+        QTest::addColumn<bool>("tailIndex");
+        QTest::addColumn<bool>("forceRetry");
+        QTest::newRow("avi") << false << false;
+        QTest::newRow("partial-h264-mp4-tail-index") << true << false;
+        QTest::newRow("retry-after-more-data") << true << true;
+    }
     void addedTorrentGetsMovieThumbnailWithoutPressingPlay() {
+        QFETCH(bool, tailIndex);
+        QFETCH(bool, forceRetry);
         namespace lt = libtorrent;
         QTemporaryDir source, data;
         const auto video =
             QFileInfo(QStringLiteral(BITFLY_PREVIEW_FIXTURE)).dir().filePath("preview-intro.avi");
-        QVERIFY(QFile::copy(video, source.filePath("movie.avi")));
+        const QString name = tailIndex ? "movie.mp4" : "movie.avi";
+        if (tailIndex) {
+            QFile input(QFileInfo(video).dir().filePath("preview-tail.mp4"));
+            QVERIFY(input.open(QIODevice::ReadOnly));
+            const auto bytes = input.readAll();
+            qsizetype moov = 0;
+            while (moov + 8 <= bytes.size() && bytes.mid(moov + 4, 4) != "moov") {
+                const auto size = qFromBigEndian<quint32>(bytes.constData() + moov);
+                QVERIFY(size >= 8);
+                moov += size;
+            }
+            QVERIFY(moov + 8 <= bytes.size());
+            QFile output(source.filePath(name));
+            QVERIFY(output.open(QIODevice::WriteOnly));
+            output.write(bytes.first(moov));
+            const quint32 padding = 32 * 1024 * 1024;
+            QByteArray header(8, 0);
+            qToBigEndian(padding, header.data());
+            header.replace(4, 4, "free");
+            output.write(header);
+            QVERIFY(output.seek(moov + padding));
+            output.write(bytes.mid(moov));
+            output.close();
+        } else
+            QVERIFY(QFile::copy(video, source.filePath(name)));
         lt::file_storage files;
-        files.add_file("movie.avi", QFileInfo(video).size());
+        files.add_file(name.toStdString(), QFileInfo(source.filePath(name)).size());
         lt::create_torrent maker(files, 16 * 1024, lt::create_torrent::v1_only);
         lt::set_piece_hashes(maker, source.path().toStdString());
         std::vector<char> bytes;
@@ -112,6 +146,8 @@ class PreviewTests final : public QObject {
         settings.set_bool(lt::settings_pack::enable_lsd, false);
         settings.set_bool(lt::settings_pack::enable_upnp, false);
         settings.set_bool(lt::settings_pack::enable_natpmp, false);
+        if (tailIndex)
+            settings.set_int(lt::settings_pack::upload_rate_limit, 256 * 1024);
         lt::session seeder(settings);
         QTRY_VERIFY_WITH_TIMEOUT(seeder.listen_port() != 0, 10000);
         lt::add_torrent_params params;
@@ -120,24 +156,53 @@ class PreviewTests final : public QObject {
         params.flags |= lt::torrent_flags::seed_mode;
         params.flags &= ~(lt::torrent_flags::paused | lt::torrent_flags::auto_managed);
         const auto handle = seeder.add_torrent(params);
+        if (tailIndex)
+            handle.set_upload_limit(256 * 1024);
         QTRY_VERIFY_WITH_TIMEOUT(handle.status().is_seeding, 10000);
         {
             SessionStore store(data.filePath("sessions.sqlite"));
-            QVERIFY(store.putMany(
-                {{"dhtEnabled", false}, {"localDiscoveryEnabled", false}, {"vlcPath", findVlc()}}));
+            QVERIFY(store.putMany({{"dhtEnabled", false},
+                                   {"localDiscoveryEnabled", false},
+                                   {"vlcPath", findVlc()},
+                                   {"streamAheadMiB", 8}}));
         }
         ApplicationController controller(nullptr, data.path());
         QSignalSpy worker(&controller, &ApplicationController::workerReady);
         QTRY_VERIFY_WITH_TIMEOUT(!worker.isEmpty(), 10000);
+        bool interrupted = false;
+        auto* capture = controller.findChild<PreviewCapture*>();
+        QVERIFY(capture);
+        if (forceRetry)
+            connect(capture, &PreviewCapture::started, this, [capture, &interrupted](QString id) {
+                if (interrupted)
+                    return;
+                interrupted = true;
+                capture->cancel(id);
+                QMetaObject::invokeMethod(capture, "failed", Qt::QueuedConnection,
+                                          Q_ARG(QString, id));
+            });
         controller.openInput(QString::fromStdString(lt::make_magnet_uri(handle)) +
                              "&x.pe=127.0.0.1:" + QString::number(seeder.listen_port()));
         QTRY_VERIFY_WITH_TIMEOUT(!controller.history().isEmpty(), 10000);
+        if (forceRetry) {
+            QTRY_VERIFY_WITH_TIMEOUT(interrupted, 30000);
+            QTRY_VERIFY_WITH_TIMEOUT(controller.sessions()
+                                         .first()
+                                         .toMap()
+                                         .value("previewStatus")
+                                         .toString()
+                                         .contains("automatically"),
+                                     3000);
+        }
         QTRY_COMPARE_WITH_TIMEOUT(
             controller.history().first().toMap().value("thumbnailKind").toString(),
             QString("frame"), 60000);
         const auto id = controller.history().first().toMap().value("id").toString();
         QVERIFY(PreviewCapture::usefulFrame(QImage(ownedThumbnailPath(data.path(), id))));
         QVERIFY(!controller.sessions().first().toMap().value("vlcRunning").toBool());
+        if (tailIndex)
+            QVERIFY(controller.sessions().first().toMap().value("downloaded").toLongLong() <
+                    QFileInfo(source.filePath(name)).size() / 2);
     }
     void rejectsBlankFrames() {
         QImage frame(512, 288, QImage::Format_RGB32);

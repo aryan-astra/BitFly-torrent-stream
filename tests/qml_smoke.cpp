@@ -119,6 +119,7 @@ class MockApp final : public QObject {
                         {"size", 640LL * 1024 * 1024},
                         {"playable", true}}};
         m_sessions = {QVariantMap{{"id", "session-1"},
+                                  {"previewStatus", "Generating video preview…"},
                                   {"name", "A Very Long Torrent Release Name That Should Be "
                                            "Ellipsized Without Pushing Controls.mkv"},
                                   {"state", "Downloading"},
@@ -224,6 +225,7 @@ class MockApp final : public QObject {
         auto url = QUrl::fromLocalFile(path);
         url.setQuery("v=123");
         first.insert("thumbnail", url.toString());
+        first.insert("previewStatus", "");
         m_sessions[0] = first;
         emit changed();
     }

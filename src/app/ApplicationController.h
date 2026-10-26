@@ -220,7 +220,10 @@ class ApplicationController : public QObject {
     QHash<QString, QVariantMap> m_pendingRelaunch;
     QSet<QString> m_forgotten;
     QSet<QString> m_pendingForget;
-    QSet<QString> m_previewSelections, m_previewRetried;
+    QSet<QString> m_previewSelections;
+    QHash<QString, qint64> m_previewFailedBytes, m_previewRetryAfter;
+    QHash<QString, int> m_previewFailures;
+    QHash<QString, QString> m_previewStatus;
     QString m_searchFeed, m_searchKey, m_protectedSearchKey;
     QSet<QString> m_updateAttempts;
     QHash<QString, QProcess*> m_players;

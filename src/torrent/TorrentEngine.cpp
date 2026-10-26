@@ -205,7 +205,7 @@ struct TorrentEngine::Torrent {
     bool metadataChecked = false, userPaused = false, streamReadyEmitted = false;
     bool reusedRetained = false;
     bool addPending = true, deleteDataOnRemove = false;
-    QSet<int> demandedPieces, readWanted, readPending;
+    QSet<int> demandedPieces, readWanted, readPending, bootstrapPieces;
 };
 
 TorrentEngine::TorrentEngine(QString cacheRoot, QObject* parent) : QObject(parent) {
@@ -656,6 +656,17 @@ void TorrentEngine::configureFiles(Torrent& t) {
                                                     lt::dont_download);
     if (t.selected >= 0 && t.selected < int(priorities.size()))
         priorities[size_t(t.selected)] = lt::default_priority;
+    t.bootstrapPieces.clear();
+    const auto selected = lt::file_index_t(t.selected);
+    const auto suffix =
+        QFileInfo(QString::fromStdString(ti->files().file_path(selected))).suffix().toLower();
+    if (suffix == "mp4" || suffix == "m4v" || suffix == "mov") {
+        const auto size = ti->files().file_size(selected);
+        const auto footer = scheduledPieces(
+            ti->files().file_offset(selected), size, std::max<qint64>(0, size - 1024 * 1024),
+            1024 * 1024, ti->piece_length(), ti->num_pieces(), MaxStreamWindowPieces);
+        t.bootstrapPieces = QSet<int>(footer.begin(), footer.end());
+    }
     t.handle.prioritize_files(priorities);
     if (!t.userPaused && !m_storagePressure) {
         t.handle.resume();
@@ -828,7 +839,9 @@ void TorrentEngine::schedule(Torrent& t, qint64 offset, qint64 length) {
     const auto reads = scheduledPieces(ti->files().file_offset(fi), ti->files().file_size(fi),
                                        offset, std::min<qint64>(length, 2 * 1024 * 1024),
                                        ti->piece_length(), ti->num_pieces(), CachePieceLookAhead);
-    t.readWanted = QSet<int>(reads.begin(), reads.end());
+    t.readWanted.unite(QSet<int>(reads.begin(), reads.end()));
+    if (t.readWanted.size() > 512)
+        t.readWanted = QSet<int>(reads.begin(), reads.end());
     applyStreamWindow(t, t.lastWindowOffset);
     requestPieceReads(t);
 }
@@ -849,7 +862,8 @@ void TorrentEngine::applyStreamWindow(Torrent& t, qint64 offset) {
     const auto pieces =
         scheduledPieces(files.file_offset(fi), files.file_size(fi), offset, windowBytes,
                         ti->piece_length(), ti->num_pieces(), lookAhead);
-    const QSet<int> current(pieces.begin(), pieces.end());
+    QSet<int> current(pieces.begin(), pieces.end());
+    current.unite(t.bootstrapPieces);
     for (int old : t.demandedPieces)
         if (!current.contains(old))
             t.handle.reset_piece_deadline(lt::piece_index_t(old));
@@ -857,8 +871,14 @@ void TorrentEngine::applyStreamWindow(Torrent& t, qint64 offset) {
     const int rate = t.handle.status().download_payload_rate;
     const int pieceEtaMs =
         rate > 0 ? qBound(60, int(qint64(ti->piece_length()) * 1000 / rate), 1200) : 350;
+    // MP4 can store its movie index at EOF; keep it urgent across concurrent HTTP seeks.
+    for (int piece : t.bootstrapPieces)
+        if (!t.handle.have_piece(lt::piece_index_t(piece)))
+            t.handle.set_piece_deadline(lt::piece_index_t(piece), 1, {});
     int distance = 0;
     for (int piece : pieces) {
+        if (t.bootstrapPieces.contains(piece))
+            continue;
         const auto pi = lt::piece_index_t(piece);
         t.handle.set_piece_deadline(pi, std::min(15000, 80 + distance * pieceEtaMs), {});
         ++distance;
@@ -951,6 +971,9 @@ void TorrentEngine::maybeStreamReady(Torrent& t) {
     const qint64 target = std::min<qint64>(2 * 1024 * 1024, file->size);
     const qint64 buffered = readVerified(file->id, 0, target).size();
     if (buffered >= target) {
+        for (int piece : t.bootstrapPieces)
+            if (!t.handle.have_piece(lt::piece_index_t(piece)))
+                return;
         t.streamReadyEmitted = true;
         // Consumers resolve the playable file from the last published snapshot when
         // streamReady arrives. Publish the snapshot that contains the selection first so
@@ -1319,8 +1342,7 @@ void TorrentEngine::poll() {
                 if (t->handle == piece->handle) {
                     t->readPending.remove(int(piece->piece));
                     t->readWanted.remove(int(piece->piece));
-                    if (!piece->error && piece->buffer &&
-                        t->demandedPieces.contains(int(piece->piece))) {
+                    if (!piece->error && piece->buffer) {
                         cachePiece(cacheKey(t->id, int(piece->piece)),
                                    QByteArray(piece->buffer.get(), piece->size));
                         maybeStreamReady(*t);
@@ -1354,8 +1376,11 @@ void TorrentEngine::poll() {
         } else if (auto* finished = lt::alert_cast<lt::piece_finished_alert>(alert)) {
             for (auto* t : m_torrents)
                 if (t->handle == finished->handle &&
-                    t->demandedPieces.contains(int(finished->piece_index))) {
+                    (t->demandedPieces.contains(int(finished->piece_index)) ||
+                     t->readWanted.contains(int(finished->piece_index)))) {
                     requestPieceReads(*t);
+                    if (t->bootstrapPieces.contains(int(finished->piece_index)))
+                        maybeStreamReady(*t);
                     break;
                 }
         } else if (auto* errorAlert = lt::alert_cast<lt::torrent_error_alert>(alert)) {
@@ -1431,7 +1456,15 @@ QVariantMap TorrentEngine::snapshot(Torrent& t) {
             startupTarget > 0
                 ? readVerified(t.id + "/" + QString::number(t.selected), 0, startupTarget).size()
                 : 0;
-        out["buffer"] = startupTarget ? double(buffered) / startupTarget : 0.0;
+        double bootstrap = 1.0;
+        if (!t.bootstrapPieces.isEmpty()) {
+            int present = 0;
+            for (int piece : t.bootstrapPieces)
+                if (t.handle.have_piece(lt::piece_index_t(piece)))
+                    ++present;
+            bootstrap = double(present) / t.bootstrapPieces.size();
+        }
+        out["buffer"] = std::min(startupTarget ? double(buffered) / startupTarget : 0.0, bootstrap);
     } else if (t.metadataStartedMs >= 0 && m_uptime.elapsed() - t.metadataStartedMs >= 30000 &&
                t.error.isEmpty()) {
         t.error = "Still waiting for torrent metadata. Check peer connectivity or try another "

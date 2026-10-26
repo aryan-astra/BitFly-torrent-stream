@@ -4,6 +4,16 @@ All notable user-visible changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The first stable release is being prepared as 1.0.0.
 
+## 1.0.2 — local automatic-preview reliability fix
+
+- Prefetch the end of MP4/MOV containers and include it in startup readiness.
+- Preserve pending verified reads across overlapping playback/preview seeks.
+- Allow 45 seconds per capture attempt and retry as download data advances,
+  with increasing backoff rather than stopping permanently after one retry.
+- Show generating/waiting/paused/unavailable preview status on torrent cards.
+- Include the application version in the window title.
+- Add partial H.264 MP4, interrupted-capture recovery and overlapping-read tests.
+
 ## 1.0.1 — local thumbnail and readability fix
 
 - Prepare video previews when metadata loads without launching the player.

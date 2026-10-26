@@ -48,6 +48,12 @@ static QString displayTitle(const QVariantMap& row) {
     return title.isEmpty() ? QStringLiteral("Fetching metadata…") : title;
 }
 
+static bool videoFile(const QString& name) {
+    static const QStringList extensions = {"mp4", "mkv",  "avi", "webm", "mov", "m4v",
+                                           "ts",  "m2ts", "wmv", "mpg",  "mpeg"};
+    return extensions.contains(QFileInfo(name).suffix().toLower());
+}
+
 static bool hasCachedMedia(const QVariantMap& row) {
     const QString root = row.value("savePath").toString();
     const QString relative = row.value("fileName", row.value("selectedName")).toString();
@@ -113,15 +119,22 @@ ApplicationController::ApplicationController(QObject* parent, QString directory)
     m_previews = new PreviewCapture(this);
     connect(m_previews, &PreviewCapture::ready, this,
             [this](QString id) { artworkReady(id, "frame"); });
+    connect(m_previews, &PreviewCapture::started, this, [this](QString id) {
+        m_previewStatus[id] = "Generating video preview…";
+        emit changed();
+    });
     connect(m_previews, &PreviewCapture::failed, this, [this](QString id) {
-        if (m_stopping || m_previewRetried.contains(id))
+        if (m_stopping)
             return;
-        m_previewRetried.insert(id);
-        QTimer::singleShot(30000, this, [this, id] {
-            if (m_generatePreviews && !session(id).isEmpty() &&
-                historyEntry(id).value("thumbnailKind", "generated") == "generated")
-                refreshPreview(id);
-        });
+        const auto row = session(id);
+        m_previewFailedBytes[id] = row.value("downloaded").toLongLong();
+        const int count = ++m_previewFailures[id];
+        m_previewRetryAfter[id] =
+            QDateTime::currentMSecsSinceEpoch() + qMin(300000, 30000 * (1 << qMin(count - 1, 4)));
+        m_previewStatus[id] = row.value("progress").toDouble() >= 1.0
+                                  ? "Preview unavailable · use the artwork menu to retry"
+                                  : "Waiting for video data · preview will retry automatically";
+        emit changed();
     });
 
     m_storageRoots = m_store.get("storageRoots", QStringList{m_cachePath}).toStringList();
@@ -169,13 +182,10 @@ ApplicationController::ApplicationController(QObject* parent, QString directory)
                         !row.value("state").toString().contains("pause", Qt::CaseInsensitive) &&
                         historyEntry(id).value("fileIndex", -1).toInt() < 0 &&
                         !m_previewSelections.contains(id)) {
-                        const QStringList video = {"mp4", "mkv",  "avi", "webm", "mov", "m4v",
-                                                   "ts",  "m2ts", "wmv", "mpg",  "mpeg"};
                         for (const auto& value : row.value("files").toList()) {
                             const auto file = value.toMap();
                             if (!file.value("playable").toBool() ||
-                                !video.contains(
-                                    QFileInfo(file.value("name").toString()).suffix().toLower()))
+                                !videoFile(file.value("name").toString()))
                                 continue;
                             m_previewSelections.insert(id);
                             const int index = file.value("index").toInt();
@@ -186,6 +196,28 @@ ApplicationController::ApplicationController(QObject* parent, QString directory)
                     }
                     row["active"] = true;
                     const auto saved = historyEntry(id);
+                    if (m_generatePreviews && m_previewFailedBytes.contains(id) &&
+                        QDateTime::currentMSecsSinceEpoch() >= m_previewRetryAfter.value(id) &&
+                        row.value("downloaded").toLongLong() > m_previewFailedBytes.value(id) &&
+                        !row.value("state").toString().contains("pause", Qt::CaseInsensitive) &&
+                        saved.value("thumbnailKind", "generated") == "generated") {
+                        m_previewFailedBytes.remove(id);
+                        QTimer::singleShot(0, this, [this, id] {
+                            if (m_generatePreviews && !m_stopping && !session(id).isEmpty() &&
+                                historyEntry(id).value("thumbnailKind", "generated") == "generated")
+                                refreshPreview(id);
+                        });
+                    }
+                    row["previewStatus"] = m_previewStatus.value(id);
+                    if (m_generatePreviews && row.value("previewStatus").toString().isEmpty() &&
+                        saved.value("thumbnailKind", "generated") == "generated" &&
+                        videoFile(row.value("selectedName").toString())) {
+                        row["previewStatus"] =
+                            !validVlc(m_vlcPath) ? "Install VLC to create video previews"
+                            : row.value("state").toString().contains("pause", Qt::CaseInsensitive)
+                                ? "Preview paused"
+                                : "Waiting for video preview data…";
+                    }
                     row["thumbnail"] = saved.value("thumbnail");
                     row["thumbnailKind"] = saved.value("thumbnailKind", "generated");
                     row["available"] = hasCachedMedia(row);
@@ -659,8 +691,14 @@ void ApplicationController::pause(QString id, bool paused) {
         fail("Close this session’s VLC window before pausing its torrent.");
         return;
     }
-    if (paused)
+    if (paused) {
         m_requested.remove(id);
+        m_previews->cancel(id);
+        m_previewStatus[id] = "Preview paused";
+    } else if (historyEntry(id).value("thumbnailKind", "generated") == "generated") {
+        m_previewFailedBytes[id] = -1;
+        m_previewRetryAfter[id] = 0;
+    }
     QMetaObject::invokeMethod(m_context, [this, id, paused] { m_engine->pause(id, paused); });
 }
 void ApplicationController::remove(QString id, bool deleteData) {
@@ -964,15 +1002,17 @@ void ApplicationController::capturePreview(QString id, QUrl url) {
     if (kind == "custom" || (kind == "frame" && PreviewCapture::usefulFrame(
                                                     QImage(ownedThumbnailPath(m_dataRoot, id)))))
         return;
-    const auto suffix = QFileInfo(row.value("selectedName").toString()).suffix().toLower();
-    const QStringList video = {"mp4", "mkv",  "avi", "webm", "mov", "m4v",
-                               "ts",  "m2ts", "wmv", "mpg",  "mpeg"};
-    if (video.contains(suffix))
+    if (row.value("state").toString().contains("pause", Qt::CaseInsensitive))
+        return;
+    if (videoFile(row.value("selectedName").toString()))
         m_previews->submit(id, url, m_vlcPath, ownedThumbnailPath(m_dataRoot, id));
 }
 void ApplicationController::artworkReady(QString id, QString kind) {
     if (m_stopping || m_forgotten.contains(id) || m_pendingForget.contains(id))
         return;
+    m_previewStatus.remove(id);
+    m_previewFailedBytes.remove(id);
+    m_previewFailures.remove(id);
     for (auto& value : m_history) {
         auto row = value.toMap();
         if (row.value("id").toString() != id)

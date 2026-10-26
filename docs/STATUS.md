@@ -1,5 +1,32 @@
 # Validation status
 
+## 1.0.2 automatic preview recovery — 2026-10-26
+
+Partial MP4/MOV streams now prefetch the final 1 MiB (piece-aligned) for container
+metadata and include it in startup readiness. Concurrent HTTP reads retain pending
+verified replies when another client seeks. VLC capture gets 45 seconds per attempt;
+failed captures retry after additional downloaded data, with 30-second to 5-minute
+backoff. Cards show generating, waiting, paused or unavailable preview status, and
+the native window title identifies the running version.
+
+All 12 CTest groups passed in 378.70 seconds. New regressions cover a throttled
+H.264 MP4 with an end-of-file index while less than half downloaded, automatic
+recovery after an interrupted capture, and overlapping stream reads. Existing
+swarm, recovery, storage, controller and QML tests also passed. Exhaustive warning/
+portability static analysis and C++ formatting passed. Evidence is under
+[validation/v1.0.2](validation/v1.0.2).
+
+The installer and portable ZIP were rebuilt and both SHA256 entries verified.
+The extracted ZIP rendered successfully using only packaged DLLs on PATH and the
+matching SDK offscreen validation plugin, with isolated diagnostic state. The
+[preview status screenshot](screenshots/v1.0.2/preview-status.png) uses test fixtures;
+the [empty library](screenshots/v1.0.2/library.png) comes from the extracted app.
+The production installer was not executed.
+
+The exact movie in the reported screenshot was not downloaded or tested. Tests use
+synthetic local media and installed VLC; visual frame filtering remains a heuristic.
+No GitHub push or release publication occurred.
+
 ## 1.0.1 thumbnail and readability verification — 2026-10-26
 
 Video metadata now prepares a preview without pressing Play. Paused sessions,

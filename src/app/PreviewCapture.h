@@ -19,6 +19,7 @@ class PreviewCapture final : public QObject {
     static bool usefulFrame(const QImage& image);
   signals:
     void ready(QString id);
+    void started(QString id);
     void failed(QString id);
 
   private:

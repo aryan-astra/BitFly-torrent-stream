@@ -83,7 +83,8 @@ void PreviewCapture::startCurrent() {
                      "--scene-replace", "--scene-width=512", "--scene-path=" + m_directory->path(),
                      "--scene-prefix=frame", m_current.url.toString(QUrl::FullyEncoded)});
     m_poll.start();
-    m_timeout.start(12000);
+    m_timeout.start(45000);
+    emit started(m_current.id);
 }
 bool PreviewCapture::saveFrame() {
     if (m_current.id.isEmpty() || !m_directory)

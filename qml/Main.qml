@@ -14,7 +14,7 @@ ApplicationWindow {
     minimumWidth: 940
     minimumHeight: 640
     visible: true
-    title: "BitFly"
+    title: Qt.application.version.length ? "BitFly " + Qt.application.version : "BitFly"
     color: Theme.window
     font.family: Theme.fontFamily
     palette.window: Theme.window

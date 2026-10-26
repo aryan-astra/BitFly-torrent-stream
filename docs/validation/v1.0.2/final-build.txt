@@ -1,0 +1,19 @@
+[0/2] Re-checking globbed directories...
+[1/21] Automatic MOC and UIC for target bitfly_app
+[2/20] Building CXX object CMakeFiles/bitfly_app.dir/src/app/ApplicationController.cpp.obj
+[3/20] Linking CXX static library libbitfly_app.a
+[4/20] Copying BitFly qml sources into build dir
+[5/20] Running qmlimportscanner for BitFly
+[6/20] Generating .rcc/qmlcache/BitFly_qml/Main_qml.cpp, .rcc/qmlcache/BitFly_qml/Main_qml.cpp.aotstats
+[7/20] Generating .rcc/qmlcache/BitFly_qml/SessionCard_qml.cpp, .rcc/qmlcache/BitFly_qml/SessionCard_qml.cpp.aotstats
+[8/20] Running rcc for resource BitFly_raw_qml_0
+[9/20] Automatic MOC and UIC for target qml_smoke
+[10/19] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/Main_qml.cpp.obj
+[11/19] Building CXX object CMakeFiles/BitFly.dir/build/.rcc/qmlcache/BitFly_qml/SessionCard_qml.cpp.obj
+[12/19] Building CXX object CMakeFiles/BitFly.dir/build/.qt/rcc/qrc_BitFly_raw_qml_0.cpp.obj
+[13/19] Building CXX object CMakeFiles/qml_smoke.dir/tests/qml_smoke.cpp.obj
+[14/19] Linking CXX executable BitFly.exe
+[15/19] Linking CXX executable integration_tests.exe
+[16/19] Linking CXX executable controller_tests.exe
+[17/19] Linking CXX executable preview_tests.exe
+[18/19] Linking CXX executable qml_smoke.exe
