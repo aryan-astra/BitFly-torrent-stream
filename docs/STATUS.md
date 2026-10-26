@@ -41,7 +41,10 @@ The cloud chat, “Monitor CI Progress”, has the reproduced local timeout and 
 continuing verification/investigation independently. There is no blanket claim
 that the app or test suite is issue-free. Production installer replacement and
 relaunch were not executed locally; installation remains explicit after automatic
-checking and verified download.
+checking and verified download. The production `UpdateService::parseRelease`
+parser was also exercised against GitHub’s actual latest-release JSON: version
+1.0.2 accepts the published1.0.3 installer, size and SHA256 for x64 and ARM64.
+This checks live manifest compatibility, not production installer execution.
 
 
 ## 1.0.2 automatic preview recovery — 2026-10-26

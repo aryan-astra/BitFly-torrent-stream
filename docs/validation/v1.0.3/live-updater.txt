@@ -1,0 +1,2 @@
+Production updater accepted stable v1.0.3 for x64: BitFly-1.0.3-windows-x64-setup.exe (31560760 bytes, SHA256 present)
+Production updater accepted stable v1.0.3 for arm64: BitFly-1.0.3-windows-arm64-setup.exe (22483864 bytes, SHA256 present)
