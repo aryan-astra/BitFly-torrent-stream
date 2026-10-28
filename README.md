@@ -49,6 +49,7 @@ BitFly supports **v1, v2 and hybrid torrents**. Playback depends on the swarm: h
 
 - **Active sessions.** File selection, progress, buffer state and player controls in one place.
 - **Saved streams.** Magnets, selected files and artwork survive a restart. Stream an entry again from the library, or remove it and its artwork.
+- **Resume in VLC.** BitFly remembers the selected video's position locally and resumes it automatically on the next launch, even when the stream URL changes. Keep BitFly open during playback; mpv and MPC-HC/BE position tracking is not supported yet.
 - **Cover previews.** Use a frame captured by VLC or choose your own artwork. Covers open from a circle into a square or landscape shape as they load.
 - **Queue.** Add and reorder streams, then pick up where you left off after a restart.
 

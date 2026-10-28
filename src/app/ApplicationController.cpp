@@ -8,12 +8,14 @@
 #include "stream/HttpServer.h"
 #include "torrent/TorrentEngine.h"
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QHostAddress>
 #include <QImageReader>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -21,6 +23,7 @@
 #include <QProcessEnvironment>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QTcpServer>
 #include <QTemporaryFile>
 #include <QTimer>
 #include <QUrlQuery>
@@ -37,9 +40,9 @@ static QString magnetKey(QString input) {
     input = input.trimmed();
     if (!input.startsWith("magnet:", Qt::CaseInsensitive))
         return input;
-    for (const QString& field : input.mid(7).split('&', Qt::SkipEmptyParts))
-        if (field.startsWith("xt=", Qt::CaseInsensitive))
-            return field.toLower();
+    for (const auto& field : QUrlQuery(QUrl(input)).queryItems(QUrl::FullyDecoded))
+        if (field.first.compare("xt", Qt::CaseInsensitive) == 0)
+            return "xt=" + field.second.toLower();
     return input.toLower();
 }
 
@@ -637,14 +640,91 @@ void ApplicationController::launch(QString id, QUrl url) {
         emit changed();
     });
     auto environment = QProcessEnvironment::systemEnvironment();
-    for (const auto& key :
-         {"QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH", "QML_IMPORT_PATH", "QML2_IMPORT_PATH"})
+    for (const auto& key : {"QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH", "QT_QPA_PLATFORM",
+                            "QML_IMPORT_PATH", "QML2_IMPORT_PATH"})
         environment.remove(key);
     environment.insert("PATH", QFileInfo(m_playerPath).absolutePath() + ";" +
                                    qEnvironmentVariable("SystemRoot", "C:/Windows") + "/System32;" +
                                    qEnvironmentVariable("SystemRoot", "C:/Windows"));
     process->setProcessEnvironment(environment);
-    process->start(m_playerPath, playerArguments(m_playerPath, url));
+    const auto row = session(id);
+    const QString input = row.value("magnet").toString().isEmpty() ? row.value("input").toString()
+                                                                   : row.value("magnet").toString();
+    const QString identity =
+        magnetKey(input) + ":" + QString::number(row.value("selected", -1).toInt());
+    const QString progressKey =
+        "playback/" +
+        QString::fromLatin1(
+            QCryptographicHash::hash(identity.toUtf8(), QCryptographicHash::Sha256).toHex());
+    const bool vlc = validVlc(m_playerPath);
+    const int resume = vlc ? qBound(0, m_store.get(progressKey, 0).toInt(), 604800) : 0;
+    auto arguments = playerArguments(m_playerPath, url, resume);
+    if (vlc) {
+        QTcpServer reservation;
+        if (reservation.listen(QHostAddress::LocalHost, 0)) {
+            const auto port = reservation.serverPort();
+            const QByteArray password = QUuid::createUuid().toByteArray(QUuid::Id128);
+            const auto media = arguments.takeLast();
+            arguments << "--extraintf=http" << "--http-host=127.0.0.1"
+                      << "--http-port=" + QString::number(port)
+                      << "--http-password=" + QString::fromLatin1(password) << media;
+            auto* poll = new QTimer(process);
+            poll->setInterval(2000);
+            connect(process, &QProcess::started, poll, qOverload<>(&QTimer::start));
+            connect(process, &QProcess::finished, poll, &QTimer::stop);
+            connect(
+                poll, &QTimer::timeout, process,
+                [this, process, poll, port, password, progressKey, resume] {
+                    if (m_stopping || process->state() != QProcess::Running ||
+                        poll->property("busy").toBool())
+                        return;
+                    poll->setProperty("busy", true);
+                    QNetworkRequest request(QUrl("http://127.0.0.1:" + QString::number(port) +
+                                                 "/requests/status.json"));
+                    request.setRawHeader("Authorization", "Basic " + (":" + password).toBase64());
+                    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                                         QNetworkRequest::ManualRedirectPolicy);
+                    request.setTransferTimeout(1500);
+                    auto* reply = m_network.get(request);
+                    connect(reply, &QNetworkReply::finished, reply, &QObject::deleteLater);
+                    connect(process, &QObject::destroyed, reply, &QNetworkReply::abort);
+                    connect(
+                        reply, &QNetworkReply::finished, process,
+                        [this, reply, poll, progressKey, resume] {
+                            poll->setProperty("busy", false);
+                            const bool success =
+                                reply->error() == QNetworkReply::NoError &&
+                                reply->attribute(QNetworkRequest::HttpStatusCodeAttribute)
+                                        .toInt() == 200;
+                            if (!success || m_stopping)
+                                return;
+                            const auto status =
+                                QJsonDocument::fromJson(reply->read(256 * 1024)).object();
+                            if (status.value("state").toString() != "playing" &&
+                                status.value("state").toString() != "paused")
+                                return;
+                            const int time = status.value("time").toInt(-1),
+                                      length = status.value("length").toInt();
+                            if (time < 0 || time > 604800 || (length > 0 && time > length))
+                                return;
+                            if (!poll->property("observed").toBool() && resume > 0 &&
+                                time < qMax(1, resume - 5))
+                                return;
+                            poll->setProperty("observed", true);
+                            if (!m_store.put(progressKey,
+                                             length > 0 && time >= length - qMin(15, length / 20)
+                                                 ? 0
+                                                 : time)) {
+                                poll->stop();
+                                fail("Could not save playback progress. Check available disk "
+                                     "space.");
+                            }
+                        });
+                });
+            reservation.close();
+        }
+    }
+    process->start(m_playerPath, arguments);
 }
 void ApplicationController::enqueue(QString id, int index) {
     if (m_queue.size() >= 200) {

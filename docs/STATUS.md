@@ -1,5 +1,30 @@
 # Validation status
 
+## VLC playback resume and preview latency — 2026-10-28
+
+VLC now reports real playback seconds through a random-port, authenticated
+loopback HTTP interface. Positions are stored locally per magnet and file and
+passed to VLC on relaunch. Magnet identity parsing now handles the leading `?`
+and ignores tracker changes. The player's Qt display environment is isolated
+from BitFly's test configuration. Other players do not report position yet.
+
+The installed-VLC suite passed all 11 cases in 94.154 seconds, including a real
+torrent seek, SQLite progress readback and a reopened VLC seeking to the saved
+position. Black-intro rejection, later sampling, partial MP4 tail metadata,
+automatic retry, cancellation and artwork preservation passed. Preview capture
+uses a shorter network cache, denser scene sampling and 150 ms frame checks;
+this does not remove swarm or container-metadata delays, and no comparative
+public-swarm latency benchmark was performed.
+
+HTTP, app, services, controller and QML smoke groups passed in 13.28 seconds.
+The x64 executable rebuilt, formatting passed, and the existing packaging script
+created an x64 ZIP under `dist/resume-preview`. With SDK paths removed, its
+application initialized a separate SQLite profile, rendered an inspected library
+screenshot and exited normally. No startup timing benchmark was taken.
+This local build is not a new published release. Signing was verified with the
+configured production key after restoring its cache from Windows account
+encryption; the signing setup is local and is not included in the repository.
+
 ## 1.0.3 preview layout and release verification — 2026-10-26
 
 Preview cards now fill their available width and their layout follows square or

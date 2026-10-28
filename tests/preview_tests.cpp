@@ -4,13 +4,19 @@
 #include "app/ThumbnailArt.h"
 #include "core/ByteSource.h"
 #include "stream/HttpServer.h"
+#include <QCryptographicHash>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkReply>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 #include <QtEndian>
 #include <libtorrent/add_torrent_params.hpp>
 #include <libtorrent/bencode.hpp>
@@ -200,6 +206,69 @@ class PreviewTests final : public QObject {
         const auto id = controller.history().first().toMap().value("id").toString();
         QVERIFY(PreviewCapture::usefulFrame(QImage(ownedThumbnailPath(data.path(), id))));
         QVERIFY(!controller.sessions().first().toMap().value("vlcRunning").toBool());
+        if (!tailIndex) {
+            // The real player must report progress and seek on the next launch.
+            auto player = [&controller]() -> QProcess* {
+                for (auto* process : controller.findChildren<QProcess*>())
+                    if (process->state() == QProcess::Running &&
+                        process->arguments().contains("--extraintf=http"))
+                        return process;
+                return nullptr;
+            };
+            auto status = [](QProcess* process, const QString& command = QString()) {
+                QString port, password;
+                for (const auto& arg : process->arguments()) {
+                    if (arg.startsWith("--http-port="))
+                        port = arg.mid(12);
+                    if (arg.startsWith("--http-password="))
+                        password = arg.mid(16);
+                }
+                QNetworkAccessManager network;
+                QNetworkRequest request(
+                    QUrl("http://127.0.0.1:" + port + "/requests/status.json" + command));
+                request.setRawHeader("Authorization",
+                                     "Basic " + (":" + password).toUtf8().toBase64());
+                request.setTransferTimeout(1000);
+                auto* reply = network.get(request);
+                QEventLoop loop;
+                QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                loop.exec();
+                if (reply->error() != QNetworkReply::NoError)
+                    return QJsonObject{};
+                return QJsonDocument::fromJson(reply->readAll()).object();
+            };
+            controller.play(id, 0);
+            QTRY_VERIFY_WITH_TIMEOUT(player(), 10000);
+            auto* first = player();
+            QTRY_COMPARE_WITH_TIMEOUT(status(first).value("state").toString(), QString("playing"),
+                                      10000);
+            QCOMPARE(status(first, "?command=pl_forcepause").value("state").toString(),
+                     QString("paused"));
+            status(first, "?command=seek&val=3");
+            status(first, "?command=pl_forceresume");
+            QTRY_VERIFY_WITH_TIMEOUT(status(first).value("time").toInt() >= 3, 3000);
+            status(first, "?command=pl_forcepause");
+            const int savedTime = status(first).value("time").toInt();
+            QVERIFY(savedTime >= 3 && savedTime < 6);
+            const QString magnet = QString::fromStdString(lt::make_magnet_uri(handle));
+            const QString identity =
+                "xt=" + magnet.section("xt=", 1, 1).section('&', 0, 0).toLower() + ":0";
+            const QString key =
+                "playback/" + QString::fromLatin1(QCryptographicHash::hash(
+                                                      identity.toUtf8(), QCryptographicHash::Sha256)
+                                                      .toHex());
+            SessionStore progress(data.filePath("sessions.sqlite"));
+            QTRY_COMPARE_WITH_TIMEOUT(progress.get(key, -1).toInt(), savedTime, 5000);
+            first->kill();
+            QTRY_VERIFY_WITH_TIMEOUT(!player(), 5000);
+            controller.clearError();
+            controller.play(id, 0);
+            QTRY_VERIFY_WITH_TIMEOUT(player(), 10000);
+            QVERIFY(player()->arguments().contains("--start-time=" + QString::number(savedTime)));
+            QTRY_VERIFY_WITH_TIMEOUT(status(player()).value("time").toInt() >= savedTime, 10000);
+            player()->kill();
+            QTRY_VERIFY_WITH_TIMEOUT(!player(), 5000);
+        }
         if (tailIndex)
             QVERIFY(controller.sessions().first().toMap().value("downloaded").toLongLong() <
                     QFileInfo(source.filePath(name)).size() / 2);

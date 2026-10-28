@@ -14,7 +14,7 @@ when configured with `-DBITFLY_TEST_INSTALLED_VLC=ON`:
 | `lifecycle` | Stable-ID reopen, original-root restore, safe retained purge |
 | `services` | Torznab, API/redirect limits, update digests/tampering, CLI allowlist |
 | `controller` | Library retention, owned/custom artwork, protected keys, settings and folder acknowledgement |
-| `previews` (opt-in) | Installed VLC decodes a generated AVI through HTTP; cancellation and artwork preservation |
+| `previews` (opt-in) | Installed VLC decodes AVI/MP4 through HTTP; cancellation, artwork preservation, reported playback progress and resume seeking |
 
 ```powershell
 ctest --test-dir build --output-on-failure

@@ -179,6 +179,8 @@ class ControllerTests final : public QObject {
         QVERIFY(!validPlayer(directory.filePath("unknown.exe")));
         const QUrl url("http://127.0.0.1:1234/stream?token=test");
         QVERIFY(playerArguments(vlc, url).contains("--no-one-instance"));
+        QVERIFY(playerArguments(vlc, url, 125).contains("--start-time=125"));
+        QVERIFY(playerArguments(vlc, url, -10).contains("--start-time=0"));
         QVERIFY(playerArguments("mpv.exe", url).contains("--keep-open=no"));
         QVERIFY(playerArguments("mpc-hc64.exe", url).contains("/new"));
         QCOMPARE(playerArguments(vlc, url).last(), url.toString(QUrl::FullyEncoded));

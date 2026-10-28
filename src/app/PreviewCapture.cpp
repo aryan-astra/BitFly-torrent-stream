@@ -11,7 +11,7 @@ namespace bitfly {
 PreviewCapture::PreviewCapture(QObject* parent) : QObject(parent) {
     m_process.setStandardOutputFile(QProcess::nullDevice());
     m_process.setStandardErrorFile(QProcess::nullDevice());
-    m_poll.setInterval(300);
+    m_poll.setInterval(150);
     m_timeout.setSingleShot(true);
     connect(&m_poll, &QTimer::timeout, this, [this] {
         if (saveFrame())
@@ -79,9 +79,10 @@ void PreviewCapture::startCurrent() {
                     {"--ignore-config", "--no-one-instance", "--intf=dummy", "--no-audio",
                      "--vout=dummy", "--play-and-exit", "--no-loop", "--no-repeat",
                      "--avcodec-hw=none", "--start-time=" + QString::number(m_current.startSeconds),
-                     "--video-filter=scene", "--scene-format=png", "--scene-ratio=12",
-                     "--scene-replace", "--scene-width=512", "--scene-path=" + m_directory->path(),
-                     "--scene-prefix=frame", m_current.url.toString(QUrl::FullyEncoded)});
+                     "--network-caching=300", "--video-filter=scene", "--scene-format=png",
+                     "--scene-ratio=3", "--scene-replace", "--scene-width=512",
+                     "--scene-path=" + m_directory->path(), "--scene-prefix=frame",
+                     m_current.url.toString(QUrl::FullyEncoded)});
     m_poll.start();
     m_timeout.start(45000);
     emit started(m_current.id);

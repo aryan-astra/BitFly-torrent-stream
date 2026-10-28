@@ -42,8 +42,14 @@ The verified RAM cache remains 64 MiB. Pending reads from concurrent HTTP client
 are coalesced in a bounded set; completed verified replies survive priority-window
 changes. MP4/MOV startup also prioritizes the final 1 MiB (piece-aligned), because
 container metadata may be at EOF. Quota/free-space pressure pauses/admission
-rejects data rather than deleting active pieces. No exact playback time or
-five-minute rolling disk eviction is inferred from byte offsets.
+rejects data rather than deleting active pieces. Playback time and rolling disk
+eviction are not inferred from byte offsets. Dedicated VLC instances report
+actual playback seconds over a random-port, password-protected loopback HTTP
+interface. BitFly stores progress per magnet identity and selected file every
+two seconds and passes it through `--start-time` on relaunch. The final 5% of a
+video, capped at 15 seconds, clears the saved position. Initial zero readings
+cannot overwrite a pending resume. Tracking requires BitFly and VLC's HTTP
+interface to remain running; other players retain their existing launch behavior.
 
 Resume state and magnet fallback are atomic. Original .torrent metadata is
 retained when available. v2 sparse-Merkle state is not serialized through the

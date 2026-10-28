@@ -7,7 +7,7 @@ namespace bitfly {
 QString findVlc(const QString& preferred = {});
 bool validVlc(const QString& path);
 bool validPlayer(const QString& path);
-QStringList playerArguments(const QString& path, const QUrl& url);
+QStringList playerArguments(const QString& path, const QUrl& url, int resumeSeconds = 0);
 QByteArray protectSecret(const QString& secret);
 QString unprotectSecret(const QByteArray& secret);
 bool prefersReducedMotion();

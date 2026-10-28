@@ -23,10 +23,12 @@ bool validPlayer(const QString& path) {
     return file.isAbsolute() && file.isFile() &&
            supported.contains(file.fileName(), Qt::CaseInsensitive);
 }
-QStringList playerArguments(const QString& path, const QUrl& url) {
+QStringList playerArguments(const QString& path, const QUrl& url, int resumeSeconds) {
     const auto name = QFileInfo(path).fileName().toLower();
     if (name == "vlc.exe")
-        return {"--no-one-instance", "--play-and-exit", url.toString(QUrl::FullyEncoded)};
+        return {"--no-one-instance", "--play-and-exit",
+                "--start-time=" + QString::number(qMax(0, resumeSeconds)),
+                url.toString(QUrl::FullyEncoded)};
     if (name == "mpv.exe")
         return {"--force-window=yes", "--keep-open=no", "--", url.toString(QUrl::FullyEncoded)};
     return {"/new", "/close", url.toString(QUrl::FullyEncoded)};
