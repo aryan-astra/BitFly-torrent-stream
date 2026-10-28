@@ -29,6 +29,11 @@ The packages are not code-signed because the project has no signing certificate 
 
 ## Publishing
 
+Pushing `main` validates and packages the source but does not publish a release.
+To ship changes, update CMake's project version and the Windows resource version,
+then push a new signed version tag. Do not reuse an older release's version or
+replace its binaries with a newer build.
+
 Create and push a signed version tag such as `v0.1.0`; do not move or delete a
 tag that has already been published. The release job runs only for `v*` tags,
 waits for both native builds and the source-quality job, checks out the tag,
@@ -52,8 +57,8 @@ verified assets from that run were uploaded through the GitHub API as
 prerelease `422010008` and downloaded again to confirm their SHA-256 values.
 That is a documented manual recovery, not the normal automated path.
 
-The corrected automatic publish path has not been exercised by a subsequent tag.
-Validate it on the next intentionally created preview or stable tag; do not move
-`v0.1.0-preview.1` to test it. If a future release job fails after creating a
+The corrected automatic publish path completed for stable `v1.0.3`, including
+both architecture packages. Do not move `v0.1.0-preview.1` or another published
+tag to test the workflow. If a future release job fails after creating a
 draft or release, inspect its state before retrying rather than deleting a
 published tag.

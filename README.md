@@ -14,8 +14,8 @@ BitFly brings a torrent stream to your desktop media player before the whole fil
 
 | Windows PC | Installer | Portable ZIP | SHA-256 |
 | --- | --- | --- | --- |
-| **x64** · Intel / AMD | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64-setup.exe) | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64.zip) | [Checksum](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-x64-SHA256SUMS.txt) |
-| **ARM64** · Windows on Arm | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64-setup.exe) | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64.zip) | [Checksum](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.3/BitFly-1.0.3-windows-arm64-SHA256SUMS.txt) |
+| **x64** · Intel / AMD | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.4/BitFly-1.0.4-windows-x64-setup.exe) | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.4/BitFly-1.0.4-windows-x64.zip) | [Checksum](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.4/BitFly-1.0.4-windows-x64-SHA256SUMS.txt) |
+| **ARM64** · Windows on Arm | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.4/BitFly-1.0.4-windows-arm64-setup.exe) | [Download](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.4/BitFly-1.0.4-windows-arm64.zip) | [Checksum](https://github.com/aryan-astra/BitFly-torrent-stream/releases/download/v1.0.4/BitFly-1.0.4-windows-arm64-SHA256SUMS.txt) |
 
 The installer works per user; the portable ZIP runs without installation. Both keep settings and library data in your Windows user profile. The ZIP needs to be replaced manually to stay portable when updating.
 
@@ -27,8 +27,8 @@ Requires **Windows 10 1809+ on x64, or Windows 11 on x64 / ARM64**, and an insta
 Download the matching checksum file, then compare its value in PowerShell:
 
 ```powershell
-Get-FileHash .\BitFly-1.0.3-windows-x64.zip -Algorithm SHA256
-Get-Content .\BitFly-1.0.3-windows-x64-SHA256SUMS.txt
+Get-FileHash .\BitFly-1.0.4-windows-x64.zip -Algorithm SHA256
+Get-Content .\BitFly-1.0.4-windows-x64-SHA256SUMS.txt
 ```
 
 </details>

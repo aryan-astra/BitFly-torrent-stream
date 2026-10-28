@@ -1,5 +1,17 @@
 # Validation status
 
+## 1.0.4 release preparation — 2026-10-29
+
+The latest main build at `2d070b0` completed the hosted Windows workflow
+successfully: [run 40739304303](https://github.com/aryan-astra/BitFly-torrent-stream/actions/runs/40739304303).
+Main pushes build and test packages but intentionally skip release publication.
+The public stable release therefore remained v1.0.3 despite the newer source.
+
+Version 1.0.4 updates CMake and Windows resource metadata for the VLC position
+resume and preview-latency fixes below. Its signed version tag will use the same
+source-quality, x64/ARM64 tests, package and smoke-check gates before publication.
+No launch video, music or private publishing brief is included in the source.
+
 ## VLC playback resume and preview latency — 2026-10-28
 
 VLC now reports real playback seconds through a random-port, authenticated
